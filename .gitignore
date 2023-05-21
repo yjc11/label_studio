@@ -1,0 +1,10 @@
+build*/
+tools*/
+.DS_Store
+data/
+sftp-config.json
+workspace/
+utils/
+
+.vscode
+doc
