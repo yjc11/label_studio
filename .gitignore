@@ -4,7 +4,5 @@ tools*/
 data/
 sftp-config.json
 workspace/
-utils/
-
 .vscode
 doc
