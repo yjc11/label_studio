@@ -1,11 +1,10 @@
-import cv2
 from io import BytesIO
 from PIL import Image
 from pathlib import Path
 from PyPDF2 import PdfMerger
 
 
-def images_to_pdf(image_path, output_path):
+def images_to_pdf(image_paths, output_path):
     """
     image_paths : image_paths / xxx.png
     output_path :  xxx.pdf

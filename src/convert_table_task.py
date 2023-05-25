@@ -11,6 +11,7 @@ import copy
 
 from tqdm import tqdm
 from pathlib import Path
+from pprint import pprint
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
 
@@ -161,7 +162,10 @@ def parse(json_file, output_path):
     for anno in tqdm(annos):
         image_url = anno['data']['Image']
         bbox_infos = anno['annotations'][0]['result']
-        ori_w = bbox_infos[0]['original_width']
+        try:
+            ori_w = bbox_infos[0]['original_width']
+        except:
+            continue
         ori_h = bbox_infos[0]['original_height']
         base_name = Path(image_url).name
         decode_base_name = urllib.parse.unquote(base_name)
@@ -355,15 +359,15 @@ if __name__ == "__main__":
     # process_img_degree()
 
     """parse to images and labels"""
-    # json_file = '../data/table_struc_dataset.json'
-    # out_folder = '../data/test_rotate'
-    # parse(json_file, out_folder)
+    json_file = '../data/table_struct.json'
+    out_folder = '../data/test_rotate'
+    parse(json_file, out_folder)
 
     """process example degree"""
     img_path = '../data/test_rotate/Images/'
     label_path = '../data/test_rotate/Labels/'
     dst = '../data/test_rotate'
-    # multithreadpost(img_path, label_path, dst)
+    multithreadpost(img_path, label_path, dst)
 
     """draw boxes"""
     from utils.draw_table_bboxes import draw_all_bboxes_row_col
