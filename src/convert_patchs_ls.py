@@ -1,10 +1,11 @@
-import cv2
-import math
-import numpy as np
-import json
-import requests
 import base64
+import json
+import math
 import os
+
+import cv2
+import numpy as np
+import requests
 
 
 def patch_recog(patchs):
@@ -141,7 +142,8 @@ def parse(json_file, output_file):
     with open(output_file, 'w') as fout:
         json.dump(content, fout, indent=4)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     json_file = './data/uie_1_1.json'
     out_file = './data/patchs_1.json'
     parse(json_file, out_file)

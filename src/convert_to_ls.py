@@ -1,7 +1,7 @@
-import os
-import json
-import urllib.parse
 import argparse
+import json
+import os
+import urllib.parse
 
 
 def trans_long_textie(data_dir, output_file, url_prefix):
@@ -19,7 +19,7 @@ def trans_long_textie(data_dir, output_file, url_prefix):
         content.append(document)
 
     with open(output_file, 'w') as fout:
-        json.dump(content, fout,  indent = 4)
+        json.dump(content, fout, indent=4)
 
 
 def trans_textie(data_dir, output_file, url_prefix):
@@ -28,7 +28,7 @@ def trans_textie(data_dir, output_file, url_prefix):
         sub_dir = os.path.join(data_dir, dirname)
         pages = os.listdir(sub_dir)
         pages = sorted(pages)
-        
+
         for idx, page in enumerate(pages):
             document = {}
             page_index = "{}_P{:03d}".format(dirname, idx)
@@ -39,33 +39,33 @@ def trans_textie(data_dir, output_file, url_prefix):
             content.append(document)
 
     with open(output_file, 'w') as fout:
-        json.dump(content, fout,  indent = 4)
+        json.dump(content, fout, indent=4)
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i',
-                        '--data_dir',
-                        help='input data path',
-                        type=str,
-                        default=None)
-    parser.add_argument('-o',
-                        '--output_file',
-                        help='output file path',
-                        type=str,
-                        default=None)
-    parser.add_argument('-u',
-                        '--url_prefix',
-                        help='url prefix path',
-                        type=str,
-                        default='http://192.168.106.8/datasets')
+    parser.add_argument(
+        '-i', '--data_dir', help='input data path', type=str, default=None
+    )
+    parser.add_argument(
+        '-o', '--output_file', help='output file path', type=str, default=None
+    )
+    parser.add_argument(
+        '-u',
+        '--url_prefix',
+        help='url prefix path',
+        type=str,
+        default='http://192.168.106.8/datasets',
+    )
 
-    parser.add_argument('-t',
-                        '--type',
-                        help='annotation task type, long or short',
-                        type=str,
-                        default='long')
-    
+    parser.add_argument(
+        '-t',
+        '--type',
+        help='annotation task type, long or short',
+        type=str,
+        default='long',
+    )
+
     return parser.parse_args()
 
 

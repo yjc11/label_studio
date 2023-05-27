@@ -1,16 +1,16 @@
+import json
+from collections import Counter, defaultdict
+
 import gradio as gr
 import requests
-import json
-from collections import defaultdict
-from collections import Counter
 
 U_TOKEN = 'cf4d118901d4fa2df115cc44cc51656838399513'
 LS_EP = 'http://192.168.106.7:8080'
 
 
 class LSClient(object):
-    def  __init__(self):
-         pass
+    def __init__(self):
+        pass
 
     def get_user_info(self, uid):
         url = '{}/api/users/{}'.format(LS_EP, uid)
@@ -34,12 +34,11 @@ def calc_statistic(data):
     uid_info_map = dict()
     # 遍历标注数据
     for annotation in data:
-
         for anno_ in annotation['annotations']:
             labels = anno_['result']
             anno = anno_
-            #labels = annotation['annotations'][0]['result']
-            #anno = annotation['annotations'][0]
+            # labels = annotation['annotations'][0]['result']
+            # anno = annotation['annotations'][0]
             uid = anno['completed_by']
             uinfo = uid_info_map.get(uid, None)
             if uinfo is None:
@@ -48,7 +47,7 @@ def calc_statistic(data):
 
             email = uinfo['email']
             username = uinfo['username']
-            fname= uinfo['first_name']
+            fname = uinfo['first_name']
             lname = uinfo['last_name']
             if fname and lname:
                 username = "{}{}".format(fname, lname)
@@ -56,14 +55,14 @@ def calc_statistic(data):
             aid = '{}'.format(username)
             for label in labels:
                 if label.get('type', '') in ['choices', 'relation']:
-                   if label['type'] == 'choices':
-                       choice = label.get('value', {}).get('choices', [])
-                       if choice:
-                           label_types = ['质检:{}'.format(choice[0])]
-                   else:
-                       label_types = ['关系']
+                    if label['type'] == 'choices':
+                        choice = label.get('value', {}).get('choices', [])
+                        if choice:
+                            label_types = ['质检:{}'.format(choice[0])]
+                    else:
+                        label_types = ['关系']
 
-                   label_count[aid].update(label_types)
+                    label_count[aid].update(label_types)
                 elif 'value' in label:
                     label_types = label['value'].get('labels', [])
                     if isinstance(label_types, str):
@@ -124,16 +123,16 @@ def clear():
 
 def main():
     with gr.Blocks() as demo:
-        #gr.Markdown("## 框标注数量统计一")
-        #input_file = gr.File(label="上传LabelStudio导出的标注结果(JSON格式)")
-        #output_text = gr.Textbox(label="标注框数量:", lines=2)
-        #btn = gr.Button("计算")
-        #btn.click(calc_count, [input_file], output_text)
+        # gr.Markdown("## 框标注数量统计一")
+        # input_file = gr.File(label="上传LabelStudio导出的标注结果(JSON格式)")
+        # output_text = gr.Textbox(label="标注框数量:", lines=2)
+        # btn = gr.Button("计算")
+        # btn.click(calc_count, [input_file], output_text)
 
         gr.Markdown("## 框标注数量统计二")
         input_text1 = gr.Textbox(label="填写ProjectID")
         gr.Markdown("### 标注框数量:")
-        #output_text1 = gr.Textbox(label="标注框数量:", lines=2)
+        # output_text1 = gr.Textbox(label="标注框数量:", lines=2)
         output_text1 = gr.Markdown(label="result")
 
         with gr.Row():
@@ -142,7 +141,6 @@ def main():
 
             btn2 = gr.Button("重置")
             btn2.click(clear, [], [input_text1, output_text1])
-
 
         demo.launch(server_name="192.168.106.7", server_port=7070)
 
