@@ -1,15 +1,14 @@
-import json
 import copy
-import cv2
+import json
 import pdb
 import shutil
-
-import numpy as np
-
-from tqdm import tqdm
-from pathlib import Path
-from copy import deepcopy
 from collections import defaultdict
+from copy import deepcopy
+from pathlib import Path
+
+import cv2
+import numpy as np
+from tqdm import tqdm
 
 color_range = [
     (255, 0, 0),

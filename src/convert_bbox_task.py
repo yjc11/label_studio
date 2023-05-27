@@ -1,9 +1,10 @@
-import os
-import json
-import urllib.parse
 import argparse
+import json
+import os
 import random
+import urllib.parse
 from collections import defaultdict
+
 import requests
 
 random.seed(123)

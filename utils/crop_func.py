@@ -1,10 +1,9 @@
-import cv2
 import shutil
-
-import numpy as np
-
-from tqdm import tqdm
 from pathlib import Path
+
+import cv2
+import numpy as np
+from tqdm import tqdm
 
 
 def rotate_and_crop_image_v1(image_path, box):
@@ -84,8 +83,8 @@ def rotate_and_crop_image_v2(image_path, box):
     # x_max, y_max = np.round(np.max(new_rect, axis=0)).astype(int)
 
     # 裁剪出对应位置的图像并返回结果
-    
-    cropped_img = img[int(ymin):int(ymax), int(xmin):int(xmax)]
+
+    cropped_img = img[int(ymin) : int(ymax), int(xmin) : int(xmax)]
 
     return cropped_img
 

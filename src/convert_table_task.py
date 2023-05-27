@@ -1,19 +1,19 @@
-import cv2
-import math
-import numpy as np
-import json
-import requests
-import urllib
-import time
-import sys
-import os
 import copy
-
-from tqdm import tqdm
-from pathlib import Path
-from pprint import pprint
+import json
+import math
+import os
+import sys
+import time
+import urllib
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
+from pathlib import Path
+from pprint import pprint
+
+import cv2
+import numpy as np
+import requests
+from tqdm import tqdm
 
 sys.path.append('..')
 from utils.ocr_func import get_ocr_results
@@ -162,11 +162,6 @@ def parse(json_file, output_path):
     for anno in tqdm(annos):
         image_url = anno['data']['Image']
         bbox_infos = anno['annotations'][0]['result']
-        try:
-            ori_w = bbox_infos[0]['original_width']
-        except:
-            continue
-        ori_h = bbox_infos[0]['original_height']
         base_name = Path(image_url).name
         decode_base_name = urllib.parse.unquote(base_name)
 
@@ -174,6 +169,8 @@ def parse(json_file, output_path):
         bboxes = []
         for info in bbox_infos:
             if info.get('type') == 'labels':
+                ori_w = info['original_width']
+                ori_h = info['original_height']
                 x = info['value']['x']
                 y = info['value']['y']
                 w = info['value']['width']
@@ -227,10 +224,10 @@ def process_img_degree(image_file, save_data_folder=''):
         int(0.25 * len(bbox_angles)) : int(0.75 * len(bbox_angles))
     ]
     mean_angle = np.mean(np.array(bbox_angles))
-    print('mean_angle:', mean_angle)
+    # print('mean_angle:', mean_angle)
 
     img_rotate, old_center, new_center = rotate_image_only(img, mean_angle)
-    print(os.path.join(save_data_folder, image_name))
+    # print(os.path.join(save_data_folder, image_name))
     cv2.imwrite(os.path.join(save_data_folder, image_name), img_rotate)
 
     return img_rotate, old_center, new_center, mean_angle
@@ -275,12 +272,16 @@ def rotate_image_only(im, angle):
         # part of the transform
         rot_mat[0, 2] += rot_move[0]
         rot_mat[1, 2] += rot_move[1]
-        rotated_image = cv2.warpAffine(
-            src,
-            rot_mat,
-            (int(math.ceil(nw)), int(math.ceil(nh))),
-            flags=cv2.INTER_LANCZOS4,
-        )
+
+        try:
+            rotated_image = cv2.warpAffine(
+                src,
+                rot_mat,
+                (int(math.ceil(nw)), int(math.ceil(nh))),
+                flags=cv2.INTER_LANCZOS4,
+            )
+        except:
+            return src
         return rotated_image
 
     old_h, old_w, _ = im.shape
@@ -289,7 +290,7 @@ def rotate_image_only(im, angle):
     image = rotate(im, angle)
     new_h, new_w, _ = image.shape
     new_center = (new_w / 2, new_h / 2)
-    print(old_center, '-->', new_center)
+    # print(old_center, '-->', new_center)
 
     return image, old_center, new_center
 
@@ -349,7 +350,10 @@ def multithreadpost(img_folder, label_folder, dst, max_workers=10):
     all_start_time = time.time()
     process_degree = partial(process_example_degree, label_folder=label_folder, dst=dst)
     with ThreadPoolExecutor(max_workers) as executor:
-        executor.map(process_degree, image_files)
+        for _ in tqdm(
+            executor.map(process_degree, image_files), total=len(image_files)
+        ):
+            pass
     all_end_time = time.time()
     print('finish_time: {}'.format(all_end_time - all_start_time))
 
@@ -359,7 +363,7 @@ if __name__ == "__main__":
     # process_img_degree()
 
     """parse to images and labels"""
-    json_file = '../data/table_struct.json'
+    json_file = '../data/liushui_table_struct.json'
     out_folder = '../data/test_rotate'
     parse(json_file, out_folder)
 
@@ -374,3 +378,27 @@ if __name__ == "__main__":
 
     src = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/'
     draw_all_bboxes_row_col(src)
+
+    # from concurrent.futures import ThreadPoolExecutor
+    # from utils.file_func import check_folder
+
+    # src = '/Users/youjiachen/Downloads/兰州模板2_1808/购买商品房2'
+    # suffix_set = {'.PNG', '.bmp', '.jpg'}
+
+    # files = list(Path(src).glob('**/*'))
+
+    # def multhread_rotate(file: Path):
+    #     suffix_set = {'.PNG', '.bmp', '.jpg'}
+    #     if file.is_file() and file.suffix in suffix_set:
+    #         if '水平' in file.parent.name:
+    #             return
+    #         folder_name = file.parent.name + '_水平'
+    #         oup_folder = file.parents[1] / folder_name
+    #         oup_folder.mkdir(exist_ok=True, parents=True)
+    #         process_img_degree(str(file), oup_folder)
+
+    # from concurrent.futures import ThreadPoolExecutor
+
+    # with ThreadPoolExecutor(max_workers=10) as executor:
+    #     for _ in tqdm(executor.map(multhread_rotate, files), total=len(files)):
+    #         pass

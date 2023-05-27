@@ -2,6 +2,7 @@ import os
 import base64
 import cv2
 import json
+import urllib
 import shutil
 import requests
 
@@ -69,12 +70,28 @@ class OCRStudio:
             self.get_task_labels(taskid, output_path)
 
     def get_task_labels(self, task_id, dst):
-        task_url = self.task_url + str(task_id)
+        def get_img(taskid, dst):
+            images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={taskid}&pageSize=1000&pageNum=1'
+            response = requests.get(images_url, self.headers)
+            images_info = response.json()
+            img_list = images_info['data']['pageInfo']['list']
+            for img_info in tqdm(img_list):
+                img_filename = img_info['fileName']
+                img_url = img_info['fileUrl']
+                r = requests.get(img_url, headers=self.headers)
+                bytes_data = r.content
+                bytes_arr = np.frombuffer(bytes_data, np.uint8)
+                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+                output_path = Path(dst) / self.taskid_to_name[taskid] / "Images"
+                output_path.mkdir(exist_ok=True, parents=True)
+                cv2.imwrite(str(output_path / f'{img_filename}'), img)
 
+        get_img(task_id, dst)
+
+        task_url = self.task_url + str(task_id)
         r = requests.get(task_url, headers=self.headers)
         result = r.json()
         item_list = result["data"]["list"]
-        # 根据id下载label
         print(f"----downloading {self.taskid_to_name[task_id]} labels----")
         for item in tqdm(item_list):
             img_id = item["taskDatasetId"]
@@ -90,6 +107,26 @@ class OCRStudio:
                 label_info = json.loads(r1.json()["data"])
                 with open(Path(output_path) / filename, "w") as f:
                     json.dump(label_info, f, ensure_ascii=False, indent=2)
+
+    def get_all_tasks_labels(self, output_path):
+        for taskid in self.taskid_to_name.keys():
+            self.get_task_imgs(taskid, output_path)
+
+    def get_task_imgs(self, taskid, dst):
+        images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={taskid}&pageSize=1000&pageNum=1'
+        response = requests.get(images_url, self.headers)
+        images_info = response.json()
+        img_list = images_info['data']['pageInfo']['list']
+        for img_info in tqdm(img_list):
+            img_filename = img_info['fileName']
+            img_url = img_info['fileUrl']
+            r = requests.get(img_url, headers=self.headers)
+            bytes_data = r.content
+            bytes_arr = np.frombuffer(bytes_data, np.uint8)
+            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+            output_path = Path(dst) / self.taskid_to_name[taskid] / "Images"
+            output_path.mkdir(exist_ok=True, parents=True)
+            cv2.imwrite(str(output_path / f'{img_filename}'), img)
 
     def convert_to_mrcnn_and_save(self, scene_path, dst):
         """
@@ -194,8 +231,8 @@ class OCRStudio:
 if __name__ == "__main__":
     ip_address = "192.168.106.133"
     port = 8088
-    folder_id = 10  # 10
-    json_oup = '/Volumes/T7-500G/数据/基础检测模型/model_第四批训练数据/'
+    folder_id = 2  # 10
+    json_oup = '../output'
     txt_oup = '/Volumes/T7-500G/数据/基础检测模型/model_第四批训练数据/合同-长文本'
     ori_txts = os.path.join(txt_oup, 'txts')
     refine_txts_dst = '/Volumes/T7-500G/txt文件/refine_txt'
@@ -204,12 +241,10 @@ if __name__ == "__main__":
     )
 
     ocr_studio = OCRStudio(ip=ip_address, port=port, folder_id=folder_id)
-    # ocr_studio.get_all_tasks_labels(json_oup)
-    ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
+    ocr_studio.get_all_tasks_labels(json_oup)
+    # ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
     # ocr_studio.rename_with_correction(ori_txts, ori_txts)
 
-    img = '/Volumes/T7-500G/数据/基础检测模型/model_第二批训练数据/内部数据/invoice&order_infoflow 2023-02-14 17-44-20.png'
-    label = '/Volumes/T7-500G/数据/基础检测模型/model_第二批训练数据/内部数据/Labels/invoice&order_infoflow 2023-02-14 17-44-20.json'
-
-    # img = ocr_studio.draw_bboxes_from_label(img, label)
-    # cv2.imwrite('./haha.png', img)
+    # print(ocr_studio.get_task_list())
+    # img_port = 9000
+    # task_id = 2

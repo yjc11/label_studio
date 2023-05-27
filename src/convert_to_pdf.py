@@ -1,6 +1,7 @@
 from io import BytesIO
-from PIL import Image
 from pathlib import Path
+
+from PIL import Image
 from PyPDF2 import PdfMerger
 
 
@@ -24,7 +25,7 @@ def images_to_pdf(image_paths, output_path):
         pdf_bytes = BytesIO()
         pdf_file.save(pdf_bytes, format='pdf')
 
-        # 将BytesIO对象添加到PdfFileMerger对象中
+        # 将BytesIO对象添加到PdfMerger对象中
         pdf_merger.append(pdf_bytes)
 
     # 将所有PDF文件合并为一个PDF文件
@@ -37,4 +38,15 @@ if __name__ == "__main__":
         '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/merge'
     ).glob('[!.]*')
     oup_path = './ccc.pdf'
-    images_to_pdf(img_path, oup_path)
+    # images_to_pdf(img_path, oup_path)
+    import urllib
+
+    img_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/check_img'
+    imgs = Path(img_path).glob('[!.]*')
+    for img in imgs:
+        basename = img.name
+        url_basename = urllib.parse.quote(basename, safe='://')
+        try:
+            img.rename(img.with_name(url_basename))
+        except:
+            continue

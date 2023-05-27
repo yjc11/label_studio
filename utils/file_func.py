@@ -1,4 +1,6 @@
 import os
+import cv2
+import urllib
 import shutil
 import random
 import imagehash
@@ -39,6 +41,20 @@ def sample_files(source_dir, target_dir, sampling_rate):
         shutil.copyfile(source_file_path, target_file_path)
 
 
+def image_deduplication(file_paths):
+    filenames = list(Path(file_paths).glob('**/[!.]*'))
+    # 读取图片并计算哈希值
+    hashes = list()
+    for filename in tqdm(filenames):
+        if filename.is_file():
+            hash = get_img_hash(filename)
+            if hash in hashes:
+                filename.unlink()
+                print(f'del {filename.name}')
+            else:
+                hashes.append(hash)
+
+
 def get_md5(file):
     file = open(file, 'rb')
     md5 = hashlib.md5(file.read())
@@ -60,15 +76,24 @@ if __name__ == "__main__":
     # check_folder(dst)
     # sample_files(src, dst, 0.1)
 
-    src = '/Users/youjiachen/Downloads/兰州模板2_1808'
-    filenames = list(Path(src).glob('**/[!.]*'))
-    # 读取图片并计算哈希值
-    hashes = list()
-    for filename in tqdm(filenames):
-        if filename.is_file():
-            hash = get_md5(filename)
-            if hash in hashes:
-                filename.unlink()
-                print(f'del {filename.name}')
-            else:
-                hashes.append(hash)
+    raw_images_path = (
+        '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/银行流水评测集_images'
+    )
+    rotate_images_path = (
+        '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/Images'
+    )
+
+    raw_images = list(Path(raw_images_path).glob('[!.]*'))
+    raw_images_set = {_.name for _ in raw_images}
+
+    rotate_images = list(Path(rotate_images_path).glob('[!.]*'))
+    rotate_images_set = {_.name for _ in rotate_images}
+
+    del_img = raw_images_set - rotate_images_set
+    for img in raw_images:
+        if img.name in del_img:
+            im_show = cv2.imread(str(img))
+            decode_name = urllib.parse.quote(img.name, safe='://')
+            print(decode_name)
+            # cv2.imshow(f'{decode_name}', im_show)
+            # cv2.waitKey(0)

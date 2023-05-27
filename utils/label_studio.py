@@ -1,18 +1,17 @@
-import json
 import copy
-import cv2
-import os
+import json
 import math
+import os
 import shutil
-
-import numpy as np
 import urllib.parse
-
-from tqdm import tqdm
-from pathlib import Path
-from copy import deepcopy
-from pprint import pprint
 from collections import defaultdict
+from copy import deepcopy
+from pathlib import Path
+from pprint import pprint
+
+import cv2
+import numpy as np
+from tqdm import tqdm
 
 
 class LabelStudio:
