@@ -227,5 +227,22 @@ def label_studio_longtext_demo():
 
 
 if __name__ == '__main__':
-    src = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/'
+    src = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/changwai_table_p2'
     draw_all_bboxes_row_col(src)
+
+    # p = '/Users/youjiachen/Desktop/liushui_text_det_ds/liushui_text_det_p2/Images'
+    # draw_txt_bboxes(p, True)
+    # import urllib
+
+    # import pandas as pd
+
+    # img_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/liushui_table_stru_p2/test_rotate/Images'
+    # img_files = list(Path(img_path).glob('[!.]*'))
+    # tmp_dict = dict()
+
+    # for img in img_files:
+    #     encode_name = urllib.parse.quote(img.name)
+    #     tmp_dict[img.name] = encode_name
+
+    # df = pd.DataFrame.from_dict(tmp_dict, orient='index')
+    # df.to_excel('./图片名对应url.xlsx')

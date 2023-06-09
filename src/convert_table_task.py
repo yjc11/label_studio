@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import urllib
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
 from pathlib import Path
@@ -16,6 +17,7 @@ import requests
 from tqdm import tqdm
 
 sys.path.append('..')
+from utils.file_func import check_folder
 from utils.ocr_func import get_ocr_results
 
 class_map = {
@@ -171,24 +173,39 @@ def parse(json_file, output_path):
             if info.get('type') == 'labels':
                 ori_w = info['original_width']
                 ori_h = info['original_height']
-                x = info['value']['x']
-                y = info['value']['y']
-                w = info['value']['width']
-                h = info['value']['height']
-                theta = info['value']['rotation']
-                label = info['value']['labels'][0]
-                w_ = w / 100.0 * ori_w
-                h_ = h / 100.0 * ori_h
-                x_ = x / 100.0 * ori_w
-                y_ = y / 100.0 * ori_h
-                rect = convert_rect((x_, y_, w_, h_, theta))
-                tmp_dict = {
-                    "category": label,
-                    "value": "",
-                    "shape": "polygon",
-                    "points": rect,
-                }
-                bboxes.append(tmp_dict)
+                if not info['value'].get('points'):
+                    x = info['value']['x']
+                    y = info['value']['y']
+                    w = info['value']['width']
+                    h = info['value']['height']
+                    theta = info['value']['rotation']
+                    label = info['value']['labels'][0]
+                    w_ = w / 100.0 * ori_w
+                    h_ = h / 100.0 * ori_h
+                    x_ = x / 100.0 * ori_w
+                    y_ = y / 100.0 * ori_h
+                    rect = convert_rect((x_, y_, w_, h_, theta))
+                    tmp_dict = {
+                        "category": label,
+                        "value": "",
+                        "shape": "polygon",
+                        "points": rect,
+                    }
+                    bboxes.append(tmp_dict)
+                elif info['value'].get('points'):
+                    rect = info['value']['points']
+                    label = info['value']['labels'][0]
+                    tmp_dict = {
+                        "category": label,
+                        "value": "",
+                        "shape": "polygon",
+                        "points": rect,
+                    }
+                    bboxes.append(tmp_dict)
+
+        if not bboxes:
+            print(f'{decode_base_name} label is empty')
+            continue
         json_oup = label_oup_path / Path(decode_base_name).with_suffix('.json')
         with open(json_oup, 'w', encoding='utf-8') as f:
             json.dump(bboxes, f, ensure_ascii=False, indent=2)
@@ -208,10 +225,13 @@ def process_img_degree(image_file, save_data_folder=''):
     """
     rotate image to 0 degree by its ocr results
     """
-    img = cv2.imread(image_file)
+    img = cv2.imread(str(image_file))
     image_name = Path(image_file).name
-
-    ocr_results = get_ocr_results(image_file)
+    try:
+        ocr_results = get_ocr_results(image_file)
+    except:
+        print(image_name, 'rotate erro')
+        cv2.imwrite(os.path.join(save_data_folder, image_name), img)
     bboxes = ocr_results['bboxes']
     bbox_angles = []
     for index, bbox in enumerate(ocr_results['bboxes']):
@@ -363,7 +383,7 @@ if __name__ == "__main__":
     # process_img_degree()
 
     """parse to images and labels"""
-    json_file = '../data/liushui_table_struct.json'
+    json_file = '../data/changwailiushui_table_p2.json'
     out_folder = '../data/test_rotate'
     parse(json_file, out_folder)
 
@@ -377,28 +397,6 @@ if __name__ == "__main__":
     from utils.draw_table_bboxes import draw_all_bboxes_row_col
 
     src = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/'
-    draw_all_bboxes_row_col(src)
+    # draw_all_bboxes_row_col(src)
 
-    # from concurrent.futures import ThreadPoolExecutor
-    # from utils.file_func import check_folder
-
-    # src = '/Users/youjiachen/Downloads/兰州模板2_1808/购买商品房2'
-    # suffix_set = {'.PNG', '.bmp', '.jpg'}
-
-    # files = list(Path(src).glob('**/*'))
-
-    # def multhread_rotate(file: Path):
-    #     suffix_set = {'.PNG', '.bmp', '.jpg'}
-    #     if file.is_file() and file.suffix in suffix_set:
-    #         if '水平' in file.parent.name:
-    #             return
-    #         folder_name = file.parent.name + '_水平'
-    #         oup_folder = file.parents[1] / folder_name
-    #         oup_folder.mkdir(exist_ok=True, parents=True)
-    #         process_img_degree(str(file), oup_folder)
-
-    # from concurrent.futures import ThreadPoolExecutor
-
-    # with ThreadPoolExecutor(max_workers=10) as executor:
-    #     for _ in tqdm(executor.map(multhread_rotate, files), total=len(files)):
-    #         pass
+    encode_name = urllib.parse.quote('北京银行个人')

@@ -1,15 +1,15 @@
-import os
 import base64
-import cv2
 import json
-import urllib
+import os
 import shutil
-import requests
-
-import numpy as np
+import urllib
 from pathlib import Path
-from tqdm import tqdm
 from pprint import pprint
+
+import cv2
+import numpy as np
+import requests
+from tqdm import tqdm
 
 color_range = [
     (255, 0, 0),
@@ -67,27 +67,10 @@ class OCRStudio:
 
     def get_all_tasks_labels(self, output_path):
         for taskid in self.taskid_to_name.keys():
+            self.get_task_imgs(taskid, output_path)
             self.get_task_labels(taskid, output_path)
 
     def get_task_labels(self, task_id, dst):
-        def get_img(taskid, dst):
-            images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={taskid}&pageSize=1000&pageNum=1'
-            response = requests.get(images_url, self.headers)
-            images_info = response.json()
-            img_list = images_info['data']['pageInfo']['list']
-            for img_info in tqdm(img_list):
-                img_filename = img_info['fileName']
-                img_url = img_info['fileUrl']
-                r = requests.get(img_url, headers=self.headers)
-                bytes_data = r.content
-                bytes_arr = np.frombuffer(bytes_data, np.uint8)
-                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-                output_path = Path(dst) / self.taskid_to_name[taskid] / "Images"
-                output_path.mkdir(exist_ok=True, parents=True)
-                cv2.imwrite(str(output_path / f'{img_filename}'), img)
-
-        get_img(task_id, dst)
-
         task_url = self.task_url + str(task_id)
         r = requests.get(task_url, headers=self.headers)
         result = r.json()
@@ -107,10 +90,6 @@ class OCRStudio:
                 label_info = json.loads(r1.json()["data"])
                 with open(Path(output_path) / filename, "w") as f:
                     json.dump(label_info, f, ensure_ascii=False, indent=2)
-
-    def get_all_tasks_labels(self, output_path):
-        for taskid in self.taskid_to_name.keys():
-            self.get_task_imgs(taskid, output_path)
 
     def get_task_imgs(self, taskid, dst):
         images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={taskid}&pageSize=1000&pageNum=1'
@@ -133,14 +112,14 @@ class OCRStudio:
         Args:
             scene_path : 二级目录，scene_path / Labels / xx.json
         """
-        json_files = list(Path(scene_path).glob('*/Labels/[!.]*'))
+        json_files = list(Path(scene_path).glob('Labels/[!.]*'))
         for json_file in tqdm(json_files):
             save_label_folder = Path(dst) / 'txts'
             save_label_folder.mkdir(exist_ok=True, parents=True)
             self.convert_to_mrcnn(json_file, save_label_folder)
 
     def convert_to_mrcnn(self, json_file, dst):
-        print(json_file)
+        # print(json_file)
         with open(json_file, 'r') as f:
             img_label = json.load(f)
             table_bboxes = []
@@ -148,8 +127,8 @@ class OCRStudio:
                 if elem['value'] != '$水印$':
                     table_bboxes.append(elem['points'])
 
-            # save txt file
-        txt_name = json_file.parents[1].name + '_' + json_file.stem + '.txt'
+        # save txt file
+        txt_name = json_file.stem + '.txt'
         with open(dst / txt_name, 'w') as f:
             for bbox in table_bboxes:
                 bbox = np.array(bbox).reshape(-1).tolist()
@@ -231,20 +210,18 @@ class OCRStudio:
 if __name__ == "__main__":
     ip_address = "192.168.106.133"
     port = 8088
-    folder_id = 2  # 10
+    folder_id = 1  # 10
     json_oup = '../output'
-    txt_oup = '/Volumes/T7-500G/数据/基础检测模型/model_第四批训练数据/合同-长文本'
+    txt_oup = '../output/'
     ori_txts = os.path.join(txt_oup, 'txts')
     refine_txts_dst = '/Volumes/T7-500G/txt文件/refine_txt'
-    final_txt_files = (
-        '/Users/youjiachen/Desktop/projects/ocr_det/ocr-mrcnn/workspace/txt_files.txt'
-    )
 
     ocr_studio = OCRStudio(ip=ip_address, port=port, folder_id=folder_id)
-    ocr_studio.get_all_tasks_labels(json_oup)
+    # ocr_studio.get_all_tasks_labels(json_oup)
+    # ocr_studio.get_task_labels(task_id=5, dst=json_oup)
     # ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
     # ocr_studio.rename_with_correction(ori_txts, ori_txts)
 
-    # print(ocr_studio.get_task_list())
-    # img_port = 9000
-    # task_id = 2
+    text_det_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/changwai_table_p2'
+    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平'
+    ocr_studio.convert_to_mrcnn_and_save(text_det_path, dst)
