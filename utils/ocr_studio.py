@@ -75,8 +75,7 @@ class OCRStudio:
         r = requests.get(task_url, headers=self.headers)
         result = r.json()
         item_list = result["data"]["list"]
-        print(f"----downloading {self.taskid_to_name[task_id]} labels----")
-        for item in tqdm(item_list):
+        for item in tqdm(item_list, desc=f'{self.taskid_to_name[task_id]} labels'):
             img_id = item["taskDatasetId"]
             img_name = item["fileName"]
             filename = Path(img_name).with_suffix(".json")
@@ -96,7 +95,7 @@ class OCRStudio:
         response = requests.get(images_url, self.headers)
         images_info = response.json()
         img_list = images_info['data']['pageInfo']['list']
-        for img_info in tqdm(img_list):
+        for img_info in tqdm(img_list, desc=f'{self.taskid_to_name[taskid]} images'):
             img_filename = img_info['fileName']
             img_url = img_info['fileUrl']
             r = requests.get(img_url, headers=self.headers)
@@ -210,18 +209,18 @@ class OCRStudio:
 if __name__ == "__main__":
     ip_address = "192.168.106.133"
     port = 8088
-    folder_id = 1  # 10
+    folder_id = 5  # 10
     json_oup = '../output'
     txt_oup = '../output/'
     ori_txts = os.path.join(txt_oup, 'txts')
     refine_txts_dst = '/Volumes/T7-500G/txt文件/refine_txt'
 
     ocr_studio = OCRStudio(ip=ip_address, port=port, folder_id=folder_id)
-    # ocr_studio.get_all_tasks_labels(json_oup)
+    ocr_studio.get_all_tasks_labels(json_oup)
     # ocr_studio.get_task_labels(task_id=5, dst=json_oup)
     # ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
     # ocr_studio.rename_with_correction(ori_txts, ori_txts)
 
-    text_det_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/changwai_table_p2'
-    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平'
-    ocr_studio.convert_to_mrcnn_and_save(text_det_path, dst)
+    # text_det_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/changwai_table_p2'
+    # dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平'
+    # ocr_studio.convert_to_mrcnn_and_save(text_det_path, dst)
