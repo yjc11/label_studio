@@ -362,23 +362,11 @@ def exec_transformer(image):
     return res["result"]["texts"][0]
 
 
-if __name__ == "__main__":
-    """covert label studio json to  processed json"""
-    # label_path = '/home/youjiachen/workspace/Labels_06_09.json'
-    # img_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.3/Images'
-    # ocr_res_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.0/dataelem_ocr_res_rotateupright_true'
-    # output_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_ds_v2.0'
-    # check_folder(output_path)
-
-    # process_label_studio(label_path, img_path, ocr_res_path, output_path)
-
-    label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
-    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
-
+def crop_and_recog(label_path):
+    """抠小碎图 然后获取识别结果并写入label studio格式json文件中"""
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
 
-    post_processed_result = []
     for task in tqdm(raw_result):
         task_folder = task['data']['Name']
         page_info = task['data']['document']
@@ -386,9 +374,6 @@ if __name__ == "__main__":
 
         # Parse bboxes
         for label in task['annotations'][0]['result']:
-            if label['type'] != 'labels':
-                continue
-
             num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
             page = f"page_{num:03d}"
 
@@ -410,5 +395,19 @@ if __name__ == "__main__":
 
     with open(Path(dst) / 'has_rec.json', 'w') as f:
         json.dump(raw_result, f, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":
+    """covert label studio json to  processed json"""
+    # label_path = '/home/youjiachen/workspace/Labels_06_09.json'
+    # img_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.3/Images'
+    # ocr_res_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.0/dataelem_ocr_res_rotateupright_true'
+    # output_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_ds_v2.0'
+    # check_folder(output_path)
+
+    # process_label_studio(label_path, img_path, ocr_res_path, output_path)
+
+    label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
+    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
 
     # print(res)
