@@ -6,6 +6,7 @@ import re
 import shutil
 import urllib
 from collections import defaultdict
+from functools import reduce
 from pathlib import Path
 from pprint import pprint
 
@@ -367,31 +368,44 @@ def crop_and_recog(label_path):
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
 
-    for task in tqdm(raw_result):
-        task_folder = task['data']['Name']
+    total_anno_num = sum([len(i['annotations'][0]['result']) for i in raw_result])
+    pbar = tqdm(total=total_anno_num)
+    for task in raw_result:
         page_info = task['data']['document']
         cur_url = [i['page'] for i in page_info]
 
         # Parse bboxes
+        id2text = dict()
         for label in task['annotations'][0]['result']:
-            num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
-            page = f"page_{num:03d}"
+            if label['type'] == 'rectangle':
+                id = label['id']
+                num = int(label['to_name'].split('_')[1])
+                page = f"page_{num:03d}"
 
-            x, y, w, h = convert_from_ls(label)
-            angle = label['value']['rotation']
-            box = convert_rect([x, y, w, h, angle])
+                x, y, w, h = convert_from_ls(label)
+                angle = label['value']['rotation']
+                box = convert_rect([x, y, w, h, angle])
 
-            image_url = next(filter(lambda x: page in x, cur_url))
-            response = requests.get(image_url)
-            if response.status_code != 200:
-                break
-            bytes_data = response.content
-            bytes_arr = np.frombuffer(bytes_data, np.uint8)
-            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-            croped_img = crop_images(img, np.array([box]))[0]
-            res = exec_transformer(croped_img)
+                image_url = next(filter(lambda x: page in x, cur_url))
+                response = requests.get(image_url)
+                if response.status_code != 200:
+                    break
+                bytes_data = response.content
+                bytes_arr = np.frombuffer(bytes_data, np.uint8)
+                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+                croped_img = crop_images(img, np.array([box]))[0]
+                res = exec_transformer(croped_img)
+                id2text[id] = res
+                label['meta'] = {'text': [res]}
+                pbar.update(1)
 
-            label['meta'] = {'text': [res]}
+            elif label['type'] == 'labels':
+                id = label['id']
+                res = id2text[id]
+                label['meta'] = {'text': [res]}
+                pbar.update(1)
+
+    pbar.close()
 
     with open(Path(dst) / 'has_rec.json', 'w') as f:
         json.dump(raw_result, f, ensure_ascii=False, indent=2)
@@ -410,4 +424,8 @@ if __name__ == "__main__":
     label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
     dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
 
-    # print(res)
+    # 如果没有识别结果
+    crop_and_recog(label_path)
+
+    # 转换格式
+    long_ie_label_parse(label_path, dst)
