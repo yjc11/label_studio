@@ -6,6 +6,7 @@ import re
 import shutil
 import urllib
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import reduce
 from pathlib import Path
 from pprint import pprint
@@ -363,14 +364,15 @@ def exec_transformer(image):
     return res["result"]["texts"][0]
 
 
-def crop_and_recog(label_path):
+def long_crop_and_recog(label_path, max_workers=10):
     """抠小碎图 然后获取识别结果并写入label studio格式json文件中"""
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
 
     total_anno_num = sum([len(i['annotations'][0]['result']) for i in raw_result])
     pbar = tqdm(total=total_anno_num)
-    for task in raw_result:
+
+    def process_task(task):
         page_info = task['data']['document']
         cur_url = [i['page'] for i in page_info]
 
@@ -405,6 +407,11 @@ def crop_and_recog(label_path):
                 label['meta'] = {'text': [res]}
                 pbar.update(1)
 
+    with ThreadPoolExecutor(max_workers) as executor:
+        futures = [executor.submit(process_task, task) for task in raw_result]
+        for future in as_completed(futures):
+            future.result()
+
     pbar.close()
 
     with open(Path(dst) / 'has_rec.json', 'w') as f:
@@ -425,7 +432,7 @@ if __name__ == "__main__":
     dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
 
     # 如果没有识别结果
-    crop_and_recog(label_path)
+    long_crop_and_recog(label_path)
 
     # 转换格式
     long_ie_label_parse(label_path, dst)
