@@ -1,16 +1,19 @@
 import base64
+import copy
 import json
 import math
 import os
 import re
 import shutil
 import threading
+import urllib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from pprint import pprint
 
 import cv2
 import numpy as np
+import requests
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -239,6 +242,67 @@ def split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path, seed
         else:
             raise ValueError(f'{file_name} not in train or val')
     print(f'train: {train_count}, val: {val_count}')
+
+
+def long_ie_label_parse(label_path, output_path):
+    """将label studio 长文档标注转为uie-x预处理前的数据格式"""
+    img_oup_path = Path(output_path) / 'Images'
+    img_oup_path.mkdir(exist_ok=True, parents=True)
+
+    with open(label_path, 'r') as f:
+        raw_result = json.load(f)
+
+    post_processed_result = []
+    for task in tqdm(raw_result):
+        task_folder = task['data']['Name']
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
+
+        # Parse Image
+        page_infos = task['data']['document']
+        images_num = 0
+        for page in page_infos:
+            image_url = page['page']
+            basename = Path(image_url).name
+            decode_base_name = urllib.parse.unquote(basename)
+            response = requests.get(image_url)
+            if response.status_code != 200:
+                break
+            bytes_data = response.content
+            bytes_arr = np.frombuffer(bytes_data, np.uint8)
+            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+            img_oup = str(img_oup_path / decode_base_name)
+            cv2.imwrite(img_oup, img)
+            images_num += 1
+
+        # Parse bboxes
+        for label in task['annotations'][0]['result']:
+            if label['type'] != 'labels':
+                continue
+
+            num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
+            page = f"page_{num:03d}"
+
+            # covert box
+            x, y, w, h = convert_from_ls(label)
+            angle = label['value']['rotation']
+            box = convert_rect([x, y, w, h, angle])
+            task_row = {
+                'id': label['id'],
+                'page_name': f'{task_folder}_{page}',
+                'box': box,
+                'rotation': label['value']['rotation'],
+                'text': label['meta']['text'] if label.get('meta') else [],  # 写入识别结果
+                'label': label['value']['labels'],  # 此处报错说明漏选标签
+            }
+
+            anno_dict['annotations'].append(task_row)
+
+        post_processed_result.append(anno_dict)
+
+    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
+        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
+
+    print(f'images num: {images_num}')
 
 
 if __name__ == "__main__":
