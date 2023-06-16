@@ -315,7 +315,8 @@ if __name__ == "__main__":
 
     process_label_studio(label_path, img_path, ocr_res_path, output_path)
 
-    # precessed_label_path = '/home/youjiachen/PaddleNLP_baidu/workspace/longtext_ie/datasets/contract_v1.1/processed_labels.json'
-    # ocr_res_path = '/home/youjiachen/PaddleNLP_baidu/workspace/longtext_ie/datasets/contract/dataelem_ocr_res_rotateupright_true'
+    label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
+    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
 
-    # split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path)
+    # 转换格式
+    long_ie_label_parse(label_path, dst)
