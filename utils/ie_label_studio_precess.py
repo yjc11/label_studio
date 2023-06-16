@@ -4,22 +4,15 @@ import math
 import os
 import re
 import shutil
-import urllib
-from collections import defaultdict
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import reduce
 from pathlib import Path
 from pprint import pprint
 
 import cv2
 import numpy as np
-import requests
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-
-host = "192.168.106.7"
-port = "8502"
-http_url = f'{host}:{port}'
 
 
 def check_folder(folder):
@@ -28,28 +21,6 @@ def check_folder(folder):
     else:
         shutil.rmtree(folder)
         os.makedirs(folder)
-
-
-def l2_norm(pt0, pt1):
-    return np.sqrt((pt0[0] - pt1[0]) ** 2 + (pt0[1] - pt1[1]) ** 2)
-
-
-def crop_images(img, bboxes):
-    n = bboxes.shape[0]
-    mats = []
-    for i in range(n):
-        bbox = bboxes[i]
-        ori_w = np.round(l2_norm(bbox[0], bbox[1]))
-        ori_h = np.round(l2_norm(bbox[1], bbox[2]))
-        new_w = ori_w
-        new_h = ori_h
-        src_3points = np.float32([bbox[0], bbox[1], bbox[2]])
-        dest_3points = np.float32([[0, 0], [new_w, 0], [new_w, new_h]])
-        M = cv2.getAffineTransform(src_3points, dest_3points)
-        m = cv2.warpAffine(img, M, (int(new_w), int(new_h)))
-        mats.append(m)
-
-    return mats
 
 
 def convert_rect(rrect):
@@ -109,36 +80,84 @@ def convert_to_ls(x, y, width, height, original_width, original_height):
     )
 
 
-def process_label_studio(label_path, img_path, ocr_res_path, output_path):
+def rotate_bbox(x, y, width, height, angle=0):
+    """_summary_
+
+    Args:
+        x : 左上角x
+        y : 左上角y
+        width : box的宽
+        height : box的高
+        angle : 弧度制旋转角
+
+    """
+    xc = x + width / 2
+    yc = y + height / 2
+    w = width / 2
+    h = height / 2
+    angle = np.deg2rad(angle)
+    cos_ang = math.cos(angle)
+    sin_ang = math.sin(angle)
+
+    x1 = xc + (-w) * cos_ang - (-h) * sin_ang
+    y1 = yc + (-w) * sin_ang + (-h) * cos_ang
+
+    x2 = xc + (w) * cos_ang - (-h) * sin_ang
+    y2 = yc + (w) * sin_ang + (-h) * cos_ang
+
+    x3 = xc + (w) * cos_ang - (h) * sin_ang
+    y3 = yc + (w) * sin_ang + (h) * cos_ang
+
+    x4 = xc + (-w) * cos_ang - (h) * sin_ang
+    y4 = yc + (-w) * sin_ang + (h) * cos_ang
+
+    return [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+
+
+def process_label_studio(
+    label_path, img_path, ocr_res_path, output_path, max_workers=10
+):
     img_output = Path(output_path) / 'Images'
     ocr_output = Path(output_path) / 'dataelem_ocr_res'
     img_output.mkdir(exist_ok=True, parents=True)
     ocr_output.mkdir(exist_ok=True, parents=True)
+    lock = threading.Lock()  # 创建一个锁对象
 
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
-
+    pbar = tqdm(total=len(raw_result))
+    img_paths = list(Path(img_path).glob(f'[!.]*.*'))  # 多线程时此处用list，不要用迭代器
+    ocr_paths = list(Path(ocr_res_path).glob(f'[!.]*.*'))
     post_processed_result = []
-    for task in tqdm(raw_result):
-        task_folder = task['data']['Name']
-        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
 
+    # for task in tqdm(raw_result):
+    def process_task(task):
         # copy image and ocr result
-        img_paths = Path(img_path).glob(f'{task_folder}*')
-        ocr_paths = Path(ocr_res_path).glob(f'{task_folder}*')
-        for image_file in img_paths:
+        task_folder = task['data']['Name']
+        # with lock:
+        cur_task_imgs = [
+            i for i in img_paths if i.stem.split('_page_')[0] == task_folder
+        ]
+        cur_ocr_result = [
+            j for j in ocr_paths if j.stem.split('_page_')[0] == task_folder
+        ]
+        for image_file in cur_task_imgs:
             shutil.copy(image_file, img_output)
-        for ocr_res_file in ocr_paths:
+        for ocr_res_file in cur_ocr_result:
             shutil.copy(ocr_res_file, ocr_output)
 
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
         for label in task['annotations'][0]['result']:
             # relation
             if 'from_id' in label and 'to_id' in label:
                 anno_dict['relations'].append(
                     {'from_id': label['from_id'], 'to_id': label['to_id']}
                 )
+                continue
+
             if label['type'] != 'labels':
                 continue
+
             num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
             page = f"page_{num:03d}"
 
@@ -161,10 +180,18 @@ def process_label_studio(label_path, img_path, ocr_res_path, output_path):
                 'text': label['meta']['text'] if label.get('meta') else [],  # 写入识别结果
                 'label': label['value']['labels'],  # 此处报错说明漏选标签
             }
-
             anno_dict['annotations'].append(task_row)
 
         post_processed_result.append(anno_dict)
+
+        pbar.update(1)
+
+    with ThreadPoolExecutor(max_workers) as e:
+        futures = [e.submit(process_task, task) for task in raw_result]
+        for future in as_completed(futures):
+            future.result()
+
+    pbar.close()
 
     with open(Path(output_path) / 'processed_labels.json', 'w') as f:
         json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
@@ -172,58 +199,6 @@ def process_label_studio(label_path, img_path, ocr_res_path, output_path):
     # 保存ori weight和ori height修正后的label studio结果
     with open(Path(output_path) / 'contract_labels_studio.json', 'w') as f:
         json.dump(raw_result, f, ensure_ascii=False, indent=2)
-
-
-def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
-    img_output = Path(output_path) / 'Images'
-    ocr_output = Path(output_path) / 'dataelem_ocr_res'
-    img_output.mkdir(exist_ok=True, parents=True)
-    ocr_output.mkdir(exist_ok=True, parents=True)
-
-    label_files = list(Path(label_path).glob('[!.]*'))
-
-    post_processed_result = []
-    invalid_data_num = 0
-    for task in tqdm(label_files, desc='converting data'):
-        task_folder = task.name.split('_page_')[0]
-        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
-
-        with task.open('r') as f:
-            task_data = json.load(f)
-
-        # check if the task contains invalid data
-        tag_set = [_['category'] for _ in task_data]
-        if '无效数据' in tag_set:
-            invalid_data_num += 1
-            continue
-
-        # copy image and ocr result
-        img_paths = Path(img_path).glob(f'{task.stem}*')
-        ocr_paths = Path(ocr_res_path).glob(f'{task.stem}*')
-        for image_file in img_paths:
-            shutil.copy(image_file, img_output)
-        for ocr_res_file in ocr_paths:
-            shutil.copy(ocr_res_file, ocr_output)
-
-        for label in task_data:
-            task_row = {
-                'id': '-',
-                'page_name': f'{task.stem}',
-                'box': label['points'],
-                'rotation': '-',
-                'text': [label['value']],  # 写入识别结果
-                'label': [label['category']],
-            }
-
-            anno_dict['annotations'].append(task_row)
-        post_processed_result.append(anno_dict)
-
-    print(f'ori data num: {len(label_files)}')
-    print(f'invalid data num: {invalid_data_num}')
-    print(f'valid data num: {len(post_processed_result)}')
-
-    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
-        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
 
 
 def split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path, seed=144):
@@ -266,173 +241,17 @@ def split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path, seed
     print(f'train: {train_count}, val: {val_count}')
 
 
-def long_ie_label_parse(label_path, output_path):
-    """将label studio 长文档标注转为uie-x预处理前的数据格式"""
-    img_oup_path = Path(output_path) / 'Images'
-    img_oup_path.mkdir(exist_ok=True, parents=True)
-
-    with open(label_path, 'r') as f:
-        raw_result = json.load(f)
-
-    post_processed_result = []
-    for task in tqdm(raw_result):
-        task_folder = task['data']['Name']
-        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
-
-        # Parse Image
-        page_infos = task['data']['document']
-        images_num = 0
-        for page in page_infos:
-            image_url = page['page']
-            basename = Path(image_url).name
-            decode_base_name = urllib.parse.unquote(basename)
-            response = requests.get(image_url)
-            if response.status_code != 200:
-                break
-            bytes_data = response.content
-            bytes_arr = np.frombuffer(bytes_data, np.uint8)
-            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-            img_oup = str(img_oup_path / decode_base_name)
-            cv2.imwrite(img_oup, img)
-            images_num += 1
-
-        # Parse bboxes
-        for label in task['annotations'][0]['result']:
-            if label['type'] != 'labels':
-                continue
-
-            num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
-            page = f"page_{num:03d}"
-
-            # covert box
-            x, y, w, h = convert_from_ls(label)
-            angle = label['value']['rotation']
-            box = convert_rect([x, y, w, h, angle])
-            task_row = {
-                'id': label['id'],
-                'page_name': f'{task_folder}_{page}',
-                'box': box,
-                'rotation': label['value']['rotation'],
-                'text': label['meta']['text'] if label.get('meta') else [],  # 写入识别结果
-                'label': label['value']['labels'],  # 此处报错说明漏选标签
-            }
-
-            anno_dict['annotations'].append(task_row)
-
-        post_processed_result.append(anno_dict)
-
-    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
-        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
-
-    print(f'images num: {images_num}')
-
-
-def SendReqWithRest(client, ep, req_body):
-    def post(ep, json_data=None, timeout=10000):
-        url = 'http://{}/v2/idp/ocr_app/infer'.format(ep)
-        r = client.post(url=url, json=json_data, timeout=timeout)
-        return r
-
-    try:
-        r = post(ep, req_body)
-        return r
-    except Exception as e:
-        print('Exception: ', e)
-
-
-def exec_transformer(image):
-    recog = "transformer-v2.8-gamma-faster"
-
-    client = requests.Session()
-    ep = http_url
-    bytes_data = cv2.imencode('.jpg', image)[1].tobytes()
-    b64enc = base64.b64encode(bytes_data).decode()
-    params = {
-        'sort_filter_boxes': True,
-        'rotateupright': False,
-        'support_long_image_segment': True,
-        'refine_boxes': True,
-        'recog': recog,
-    }
-    req_data = {'param': params, 'data': [b64enc]}
-    r = SendReqWithRest(client, ep, req_data)
-
-    if r.status_code != 200:
-        print("ERROR: can't get text result after transformer-v2.8-gamma")
-        return None
-    res = r.json()
-    return res["result"]["texts"][0]
-
-
-def long_crop_and_recog(label_path, max_workers=10):
-    """抠小碎图 然后获取识别结果并写入label studio格式json文件中"""
-    with open(label_path, 'r') as f:
-        raw_result = json.load(f)
-
-    total_anno_num = sum([len(i['annotations'][0]['result']) for i in raw_result])
-    pbar = tqdm(total=total_anno_num)
-
-    def process_task(task):
-        page_info = task['data']['document']
-        cur_url = [i['page'] for i in page_info]
-
-        # Parse bboxes
-        id2text = dict()
-        for label in task['annotations'][0]['result']:
-            if label['type'] == 'rectangle':
-                id = label['id']
-                num = int(label['to_name'].split('_')[1])
-                page = f"page_{num:03d}"
-
-                x, y, w, h = convert_from_ls(label)
-                angle = label['value']['rotation']
-                box = convert_rect([x, y, w, h, angle])
-
-                image_url = next(filter(lambda x: page in x, cur_url))
-                response = requests.get(image_url)
-                if response.status_code != 200:
-                    break
-                bytes_data = response.content
-                bytes_arr = np.frombuffer(bytes_data, np.uint8)
-                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-                croped_img = crop_images(img, np.array([box]))[0]
-                res = exec_transformer(croped_img)
-                id2text[id] = res
-                label['meta'] = {'text': [res]}
-                pbar.update(1)
-
-            elif label['type'] == 'labels':
-                id = label['id']
-                res = id2text[id]
-                label['meta'] = {'text': [res]}
-                pbar.update(1)
-
-    with ThreadPoolExecutor(max_workers) as executor:
-        futures = [executor.submit(process_task, task) for task in raw_result]
-        for future in as_completed(futures):
-            future.result()
-
-    pbar.close()
-
-    with open(Path(dst) / 'has_rec.json', 'w') as f:
-        json.dump(raw_result, f, ensure_ascii=False, indent=2)
-
-
 if __name__ == "__main__":
-    """covert label studio json to  processed json"""
-    # label_path = '/home/youjiachen/workspace/Labels_06_09.json'
-    # img_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.3/Images'
-    # ocr_res_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_v1.0/dataelem_ocr_res_rotateupright_true'
-    # output_path = '/home/youjiachen/workspace/longtext_ie/datasets/contract_ds_v2.0'
-    # check_folder(output_path)
+    # covert label studio json to  processed json
+    label_path = '/home/youjiachen/label_studio/data/ershoufang-hebing.json'
+    img_path = '/home/youjiachen/label_studio/data/Images'
+    ocr_res_path = '/home/youjiachen/label_studio/data/ocr_result'
+    output_path = '/home/youjiachen/workspace/short_doc/short_doc_5_scene_06_12/二手房-合并'
+    check_folder(output_path)
 
-    # process_label_studio(label_path, img_path, ocr_res_path, output_path)
+    process_label_studio(label_path, img_path, ocr_res_path, output_path)
 
-    label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
-    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
+    # precessed_label_path = '/home/youjiachen/PaddleNLP_baidu/workspace/longtext_ie/datasets/contract_v1.1/processed_labels.json'
+    # ocr_res_path = '/home/youjiachen/PaddleNLP_baidu/workspace/longtext_ie/datasets/contract/dataelem_ocr_res_rotateupright_true'
 
-    # 如果没有识别结果
-    long_crop_and_recog(label_path)
-
-    # 转换格式
-    long_ie_label_parse(label_path, dst)
+    # split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path)
