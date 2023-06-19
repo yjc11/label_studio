@@ -92,4 +92,4 @@ if __name__ == "__main__":
     #     if i.name.split('_')[0] in selected_list:
     #         shutil.copy(i, dst)
     # print(len(img_src))
-
+    pass
