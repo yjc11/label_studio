@@ -90,19 +90,19 @@ class OCRStudio:
                 with open(Path(output_path) / filename, "w") as f:
                     json.dump(label_info, f, ensure_ascii=False, indent=2)
 
-    def get_task_imgs(self, taskid, dst):
-        images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={taskid}&pageSize=1000&pageNum=1'
+    def get_task_imgs(self, task_id, dst):
+        images_url = f'http://{self.ip}:{self.port}/smartarchive/api/v1/training-task-iteration-dataset/images?imageName=&error=false&taskId={task_id}&pageSize=1000&pageNum=1'
         response = requests.get(images_url, self.headers)
         images_info = response.json()
         img_list = images_info['data']['pageInfo']['list']
-        for img_info in tqdm(img_list, desc=f'{self.taskid_to_name[taskid]} images'):
+        for img_info in tqdm(img_list, desc=f'{self.taskid_to_name[task_id]} images'):
             img_filename = img_info['fileName']
             img_url = img_info['fileUrl']
             r = requests.get(img_url, headers=self.headers)
             bytes_data = r.content
             bytes_arr = np.frombuffer(bytes_data, np.uint8)
             img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-            output_path = Path(dst) / self.taskid_to_name[taskid] / "Images"
+            output_path = Path(dst) / self.taskid_to_name[task_id] / "Images"
             output_path.mkdir(exist_ok=True, parents=True)
             cv2.imwrite(str(output_path / f'{img_filename}'), img)
 
