@@ -305,6 +305,58 @@ def long_ie_label_parse(label_path, output_path):
     print(f'images num: {images_num}')
 
 
+def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
+    img_output = Path(output_path) / 'Images'
+    ocr_output = Path(output_path) / 'dataelem_ocr_res'
+    img_output.mkdir(exist_ok=True, parents=True)
+    ocr_output.mkdir(exist_ok=True, parents=True)
+
+    label_files = list(Path(label_path).glob('[!.]*'))
+
+    post_processed_result = []
+    invalid_data_num = 0
+    for task in tqdm(label_files, desc='converting data'):
+        task_folder = task.name.split('_page_')[0]
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
+
+        with task.open('r') as f:
+            task_data = json.load(f)
+
+        # check if the task contains invalid data
+        tag_set = [_['category'] for _ in task_data]
+        if '无效数据' in tag_set:
+            invalid_data_num += 1
+            continue
+
+        # copy image and ocr result
+        img_paths = Path(img_path).glob(f'{task.stem}*')
+        ocr_paths = Path(ocr_res_path).glob(f'{task.stem}*')
+        for image_file in img_paths:
+            shutil.copy(image_file, img_output)
+        for ocr_res_file in ocr_paths:
+            shutil.copy(ocr_res_file, ocr_output)
+
+        for label in task_data:
+            task_row = {
+                'id': '-',
+                'page_name': f'{task.stem}',
+                'box': label['points'],
+                'rotation': '-',
+                'text': label['value'],  # 写入识别结果
+                'label': label['category'],
+            }
+
+            anno_dict['annotations'].append(task_row)
+        post_processed_result.append(anno_dict)
+
+    print(f'ori data num: {len(label_files)}')
+    print(f'invalid data num: {invalid_data_num}')
+    print(f'valid data num: {len(post_processed_result)}')
+
+    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
+        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
+
+
 if __name__ == "__main__":
     # covert label studio json to  processed json
     label_path = '/home/youjiachen/label_studio/data/ershoufang-hebing.json'
