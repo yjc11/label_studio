@@ -1,16 +1,16 @@
 import base64
-import os
-import requests
-import time
 import concurrent.futures
-from multiprocessing.dummy import Pool as ThreadPool  # 多线程
 import json
-import numpy as np
+import os
 import re
 import shutil
+import time
+from multiprocessing.dummy import Pool as ThreadPool  # 多线程
 from pathlib import Path
-from tqdm import tqdm
 
+import numpy as np
+import requests
+from tqdm import tqdm
 
 IP_ADDRESS = '192.168.106.131'
 PORT = 8506
@@ -109,33 +109,11 @@ def get_ocr_results(image_file, ip_address=IP_ADDRESS, port=PORT):
 
 
 if __name__ == '__main__':
-    CWD = Path().cwd()
-    DATA_DIR = CWD / 'workspace/long_text/long_text_contract_ds/Images'
-    OUTPUT_PATH = CWD / 'contract_longtext/dataelem_ocr_res_rotateupright_true'
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    # general
-    # @save_to_json(OUTPUT_PATH)
-    # def get_ocr_results_and_save(image_file, ip_address=IP_ADDRESS, port=PORT):
-    #     """
-    #     常规ocr全文识别结果配置
-    #     """
-    #     data = {
-    #         'scene': 'chinese_print',
-    #         'image': convert_b64(image_file),
-    #         'parameters': {
-    #             'vis_flag': False,
-    #             'det': 'mrcnn-v5.1',
-    #             # 'det': 'None',
-    #             'recog': 'transformer-v2.8-gamma-faster',
-    #             #    'recog' : 'transformer-blank-v0.2-faster',
-    #             'sdk': True,
-    #             'rotateupright': False,
-    #         },
-    #     }
-
-    #     ret = general(data, ip_address, port)
-
-    #     return ret['data']['json']['general_ocr_res']
+    DATA_DIR = '../output/询证函-去摩尔纹/Images'
+    OUTPUT_PATH = '../output/询证函-去摩尔纹/dataelem_ocr_res'
+    check_folder(OUTPUT_PATH)
 
     # smart structure
     @save_to_json(OUTPUT_PATH)
@@ -162,18 +140,11 @@ if __name__ == '__main__':
 
         return ret['data']['json']['general_ocr_res']
 
-    image_files = list(DATA_DIR.glob('[!.]*'))
-    # multithreadpost(image_files, get_ocr_results, max_workers=10)
-    # multithreadpost(image_files, get_ocr_results_and_save, max_workers=10)
-
-    # if raise erro
-    # ori_img = list(DATA_DIR.glob('[!.]*'))
-    # ocr_res = list(OUTPUT_PATH.glob('[!.]*'))
-
-    # set_ori_img = {i.stem for i in ori_img}
-    # set_ocr_img = {i.stem for i in ocr_res}
-
-    # unseen_pic = set_ocr_img ^ set_ori_img
-    # unseen_image_files = [DATA_DIR / (i + '.png') for i in unseen_pic]
-
-    # multithreadpost(unseen_image_files, get_ocr_results_and_save, max_workers=10)
+    image_files = list(Path(DATA_DIR).glob('[!.]*'))
+    pbar = tqdm(total=len(image_files))
+    with ThreadPoolExecutor(30) as e:
+        futures = [e.submit(get_ocr_results_and_save, task) for task in image_files]
+        for future in as_completed(futures):
+            pbar.update(1)
+            future.result()
+    pbar.close()
