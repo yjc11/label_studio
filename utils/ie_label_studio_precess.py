@@ -124,7 +124,6 @@ def process_label_studio(
     ocr_output = Path(output_path) / 'dataelem_ocr_res'
     img_output.mkdir(exist_ok=True, parents=True)
     ocr_output.mkdir(exist_ok=True, parents=True)
-    lock = threading.Lock()  # 创建一个锁对象
 
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
@@ -343,7 +342,7 @@ def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
                 'box': label['points'],
                 'rotation': '-',
                 'text': label['value'],  # 写入识别结果
-                'label': label['category'],
+                'label': [label['category']],
             }
 
             anno_dict['annotations'].append(task_row)
@@ -359,16 +358,13 @@ def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
 
 if __name__ == "__main__":
     # covert label studio json to  processed json
-    label_path = '/home/youjiachen/label_studio/data/ershoufang-hebing.json'
-    img_path = '/home/youjiachen/label_studio/data/Images'
-    ocr_res_path = '/home/youjiachen/label_studio/data/ocr_result'
-    output_path = '/home/youjiachen/workspace/short_doc/short_doc_5_scene_06_12/二手房-合并'
+    label_path = '../output/询证函-去摩尔纹/Labels'
+    img_path = '../output/询证函-去摩尔纹/Images'
+    ocr_res_path = '../output/询证函-去摩尔纹/dataelem_ocr_res'
+    output_path = (
+        '/mnt/disk0/youjiachen/workspace/short_doc/short_doc_5_scene_06_12/询证函-去摩尔纹'
+    )
     check_folder(output_path)
 
-    process_label_studio(label_path, img_path, ocr_res_path, output_path)
-
-    label_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/二手房-合并.json'
-    dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/'
-
-    # 转换格式
-    long_ie_label_parse(label_path, dst)
+    process_ocr_studio(label_path, img_path, ocr_res_path, output_path)
+    # long_ie_label_parse(label_path, img_path, ocr_res_path, output_path)
