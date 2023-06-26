@@ -356,15 +356,78 @@ def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
         json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
 
 
+def short_ie_label_parse(label_path, output_path):
+    """将label studio 短文档标注转为uie-x预处理前的数据格式"""
+    img_oup_path = Path(output_path) / 'Images'
+    img_oup_path.mkdir(exist_ok=True, parents=True)
+
+    with open(label_path, 'r') as f:
+        raw_result = json.load(f)
+
+    post_processed_result = []
+    images_num = 0
+    for task in tqdm(raw_result):
+        task_folder = Path(task['data']['Image']).parents[1].name
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
+
+        # Parse Image
+        image_url = task['data']['Image']
+        basename = Path(image_url).name
+        decode_basename = Path(urllib.parse.unquote(basename))
+        new_stem = decode_basename.stem + '_page_000'
+        decode_basename = new_stem + decode_basename.suffix
+        response = requests.get(image_url)
+        if response.status_code != 200:
+            break
+        bytes_data = response.content
+        bytes_arr = np.frombuffer(bytes_data, np.uint8)
+        img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+        img_oup = str(img_oup_path / f'{decode_basename}')
+        cv2.imwrite(img_oup, img)
+        images_num += 1
+
+        # Parse bboxes
+        for label in task['annotations'][0]['result']:
+            if label['type'] == 'labels':
+                # covert box
+                x, y, w, h = convert_from_ls(label)
+                angle = label['value']['rotation']
+                box = convert_rect([x, y, w, h, angle])
+                task_row = {
+                    'id': label['id'],
+                    'page_name': f'{task_folder}_page_000',
+                    'box': box,
+                    'rotation': label['value']['rotation'],
+                    'label': label['value']['labels'],  # 此处报错说明漏选标签
+                }
+            elif label['type'] == 'textarea':
+                task_row['text'] = label['value']['text']
+                anno_dict['annotations'].append(task_row)
+
+        post_processed_result.append(anno_dict)
+
+    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
+        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
+
+    print(f'images num: {images_num}')
+
+
 if __name__ == "__main__":
     # covert label studio json to  processed json
-    label_path = '../output/询证函-去摩尔纹/Labels'
-    img_path = '../output/询证函-去摩尔纹/Images'
-    ocr_res_path = '../output/询证函-去摩尔纹/dataelem_ocr_res'
-    output_path = (
-        '/mnt/disk0/youjiachen/workspace/short_doc/short_doc_5_scene_06_12/询证函-去摩尔纹'
-    )
-    check_folder(output_path)
+    # label_path = '../output/询证函-去摩尔纹/Labels'
+    # img_path = '../output/询证函-去摩尔纹/Images'
+    # ocr_res_path = '../output/询证函-去摩尔纹/dataelem_ocr_res'
+    # output_path = (
+    #     '/mnt/disk0/youjiachen/workspace/short_doc/short_doc_5_scene_06_12/询证函-去摩尔纹'
+    # )
+    # check_folder(output_path)
 
-    process_ocr_studio(label_path, img_path, ocr_res_path, output_path)
+    # process_ocr_studio(label_path, img_path, ocr_res_path, output_path)
     # long_ie_label_parse(label_path, img_path, ocr_res_path, output_path)
+    
+    label_path = '../output/drawdown.json'
+    dst = '../data/drawdown'
+
+    # 转换格式
+    # long_ie_label_parse(label_path, dst)
+    short_ie_label_parse(label_path, dst)
