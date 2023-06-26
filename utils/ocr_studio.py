@@ -212,13 +212,11 @@ if __name__ == "__main__":
     folder_id = 5  # 10
     json_oup = '../output'
     txt_oup = '../output/'
-    ori_txts = os.path.join(txt_oup, 'txts')
-    refine_txts_dst = '/Volumes/T7-500G/txt文件/refine_txt'
 
     ocr_studio = OCRStudio(ip=ip_address, port=port, folder_id=folder_id)
-    ocr_studio.get_all_tasks_labels(json_oup)
-    ocr_studio.get_task_labels(task_id=5, dst=json_oup)
-    ocr_studio.get_task_labels(task_id=5, dst=json_oup)
+    # ocr_studio.get_all_tasks_labels(json_oup)
+    ocr_studio.get_task_labels(task_id=40, dst=json_oup)
+    ocr_studio.get_task_imgs(task_id=40, dst=json_oup)
     # ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
     # ocr_studio.rename_with_correction(ori_txts, ori_txts)
 

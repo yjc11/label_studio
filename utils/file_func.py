@@ -1,12 +1,12 @@
-import os
-import cv2
-import urllib
-import shutil
-import random
-import imagehash
 import hashlib
-
+import os
+import random
+import shutil
+import urllib
 from pathlib import Path
+
+import cv2
+import imagehash
 from PIL import Image
 from tqdm import tqdm
 
@@ -70,30 +70,19 @@ def get_img_hash(file):
     return hash
 
 
+def rename_files():
+    """
+    短文档定制，因为短文档需要后缀有_page_xxx
+    """
+    src = '/mnt/disk0/youjiachen/label_studio/output/询证函-去摩尔纹'
+    file_list = list(Path(src).glob('**/[!.]*.*'))
+
+    for file in file_list:
+        file_stem = file.stem
+        file_suffix = file.suffix
+        new_name = file_stem + '_page_000' + file_suffix
+        file.rename(file.with_name(new_name))
+
 if __name__ == "__main__":
-    # src = '/Users/youjiachen/Desktop/projects/label_studio_mgr/workspace/gouxuankuang/test/check_img'
-    # dst = '/Users/youjiachen/Desktop/projects/label_studio_mgr/workspace/gouxuankuang/test/sample_100'
-    # check_folder(dst)
-    # sample_files(src, dst, 0.1)
+    rename_files()
 
-    raw_images_path = (
-        '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/银行流水评测集_images'
-    )
-    rotate_images_path = (
-        '/Users/youjiachen/Desktop/projects/label_studio_mgr/data/test_rotate/水平/Images'
-    )
-
-    raw_images = list(Path(raw_images_path).glob('[!.]*'))
-    raw_images_set = {_.name for _ in raw_images}
-
-    rotate_images = list(Path(rotate_images_path).glob('[!.]*'))
-    rotate_images_set = {_.name for _ in rotate_images}
-
-    del_img = raw_images_set - rotate_images_set
-    for img in raw_images:
-        if img.name in del_img:
-            im_show = cv2.imread(str(img))
-            decode_name = urllib.parse.quote(img.name, safe='://')
-            print(decode_name)
-            # cv2.imshow(f'{decode_name}', im_show)
-            # cv2.waitKey(0)
