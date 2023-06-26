@@ -341,7 +341,7 @@ def process_ocr_studio(label_path, img_path, ocr_res_path, output_path):
                 'page_name': f'{task.stem}',
                 'box': label['points'],
                 'rotation': '-',
-                'text': label['value'],  # 写入识别结果
+                'text': [label['value']],  # 写入识别结果
                 'label': [label['category']],
             }
 
