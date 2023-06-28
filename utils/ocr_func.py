@@ -93,13 +93,16 @@ def get_ocr_results(image_file, ip_address=IP_ADDRESS, port=PORT):
     data = {
         'scene': 'chinese_print',
         'image': convert_b64(image_file),
+        # 'image': image_file,
         'parameters': {
+            'rotateupright': True,
+            'refine_boxes': True,
+            'sort_filter_boxes': True,
+            'support_long_rotate_dense': False,
             'vis_flag': False,
+            'sdk': True,
             'det': 'mrcnn-v5.1',
             'recog': 'transformer-v2.8-gamma-faster',
-            #    'recog' : 'transformer-blank-v0.2-faster',
-            'sdk': True,
-            'rotateupright': False,
         },
     }
 

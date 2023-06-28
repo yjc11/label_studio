@@ -14,6 +14,7 @@ from pprint import pprint
 import cv2
 import numpy as np
 import requests
+from ocr_func import get_ocr_results
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -246,38 +247,54 @@ def split_ocr_res_trianval(output_path, precessed_label_path, ocr_res_path, seed
 def long_ie_label_parse(label_path, output_path):
     """将label studio 长文档标注转为uie-x预处理前的数据格式"""
     img_oup_path = Path(output_path) / 'Images'
+    ocr_res_oup_path = Path(output_path) / 'dataelem_ocr_res'
     img_oup_path.mkdir(exist_ok=True, parents=True)
+    ocr_res_oup_path.mkdir(exist_ok=True, parents=True)
 
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
 
+    # for i in raw_result:
+    #     for j in i['annotations'][0]['result']:
+    #         if j['type'] == 'labels':
+    #             total_anno_num += 1
+    # pbar = tqdm(total=total_anno_num)
+
     post_processed_result = []
     images_num = 0
     for task in tqdm(raw_result):
+        # def process_task(task, post_processed_result):
         task_folder = task['data']['Name']
-        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
-        # Parse Image
         page_infos = task['data']['document']
+        cur_urls = [_['page'] for _ in page_infos]
 
-        for page in page_infos:
-            image_url = page['page']
-            basename = Path(image_url).name
-            decode_base_name = urllib.parse.unquote(basename)
-            response = requests.get(image_url)
-            if response.status_code != 200:
-                break
-            bytes_data = response.content
-            bytes_arr = np.frombuffer(bytes_data, np.uint8)
-            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-            img_oup = str(img_oup_path / decode_base_name)
-            cv2.imwrite(img_oup, img)
-            images_num += 1
-
-        # Parse bboxes
+        # Parse Image and bboxes
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
         for label in task['annotations'][0]['result']:
             if label['type'] == 'labels':
+                # get image
                 num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
                 page = f"page_{num:03d}"
+                image_url = cur_urls[num]
+                basename = Path(image_url).name
+                decode_base_name = urllib.parse.unquote(basename)
+                if not decode_base_name.startswith(task_folder):
+                    decode_base_name = task_folder + '_' + decode_base_name
+                response = requests.get(image_url)
+                if response.status_code != 200:
+                    break
+                bytes_data = response.content
+                bytes_arr = np.frombuffer(bytes_data, np.uint8)
+                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+                img_oup = str(img_oup_path / decode_base_name)
+                cv2.imwrite(img_oup, img)
+                images_num += 1
+
+                # get ocr result
+                ocr_result = get_ocr_results(img_oup)
+                json_name = Path(decode_base_name).with_suffix('.json')
+                with open(ocr_res_oup_path / json_name, 'w') as f:
+                    json.dump(ocr_result, f, ensure_ascii=False, indent=2)
 
                 # covert box
                 assert (label['original_width'] != 1) or (label['original_height'] != 1)
