@@ -252,13 +252,13 @@ def long_ie_label_parse(label_path, output_path):
         raw_result = json.load(f)
 
     post_processed_result = []
+    images_num = 0
     for task in tqdm(raw_result):
         task_folder = task['data']['Name']
         anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
-
         # Parse Image
         page_infos = task['data']['document']
-        images_num = 0
+
         for page in page_infos:
             image_url = page['page']
             basename = Path(image_url).name
@@ -275,26 +275,26 @@ def long_ie_label_parse(label_path, output_path):
 
         # Parse bboxes
         for label in task['annotations'][0]['result']:
-            if label['type'] != 'labels':
-                continue
+            if label['type'] == 'labels':
+                num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
+                page = f"page_{num:03d}"
 
-            num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
-            page = f"page_{num:03d}"
+                # covert box
+                assert (label['original_width'] != 1) or (label['original_height'] != 1)
+                x, y, w, h = convert_from_ls(label)
+                angle = label['value']['rotation']
+                box = convert_rect([x, y, w, h, angle])
+                task_row = {
+                    'id': label['id'],
+                    'page_name': f'{task_folder}_{page}',
+                    'box': box,
+                    'rotation': label['value']['rotation'],
+                    'label': label['value']['labels'],  # 此处报错说明漏选标签
+                }
 
-            # covert box
-            x, y, w, h = convert_from_ls(label)
-            angle = label['value']['rotation']
-            box = convert_rect([x, y, w, h, angle])
-            task_row = {
-                'id': label['id'],
-                'page_name': f'{task_folder}_{page}',
-                'box': box,
-                'rotation': label['value']['rotation'],
-                'text': label['meta']['text'] if label.get('meta') else [],  # 写入识别结果
-                'label': label['value']['labels'],  # 此处报错说明漏选标签
-            }
-
-            anno_dict['annotations'].append(task_row)
+            elif label['type'] == 'textarea':
+                task_row['text'] = label['value']['text']
+                anno_dict['annotations'].append(task_row)
 
         post_processed_result.append(anno_dict)
 
@@ -424,10 +424,10 @@ if __name__ == "__main__":
 
     # process_ocr_studio(label_path, img_path, ocr_res_path, output_path)
     # long_ie_label_parse(label_path, img_path, ocr_res_path, output_path)
-    
-    label_path = '../output/drawdown.json'
-    dst = '../data/drawdown'
+
+    label_path = '../data/recog_合同识别测试.json'
+    dst = '../data/recog_合同识别测试'
 
     # 转换格式
-    # long_ie_label_parse(label_path, dst)
-    short_ie_label_parse(label_path, dst)
+    long_ie_label_parse(label_path, dst)
+    # short_ie_label_parse(label_path, dst)
