@@ -3,6 +3,7 @@ import math
 import re
 import sys
 import urllib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import cv2
@@ -127,84 +128,6 @@ def short_ie_label_parse(label_path, output_path):
     print(f'images num: {images_num}')
 
 
-def long_ie_label_parse_v2(label_path, output_path, ocr=False):
-    """将label studio 长文档标注转为uie-x预处理前的数据格式"""
-    img_oup_path = Path(output_path) / 'Images'
-    ocr_res_oup_path = Path(output_path) / 'dataelem_ocr_res'
-    img_oup_path.mkdir(exist_ok=True, parents=True)
-    ocr_res_oup_path.mkdir(exist_ok=True, parents=True)
-
-    with open(label_path, 'r') as f:
-        raw_result = json.load(f)
-
-    # for i in raw_result:
-    #     for j in i['annotations'][0]['result']:
-    #         if j['type'] == 'labels':
-    #             total_anno_num += 1
-    # pbar = tqdm(total=total_anno_num)
-
-    post_processed_result = []
-    images_num = 0
-    for task in tqdm(raw_result):
-        # def process_task(task, post_processed_result):
-        task_folder = task['data']['Name']
-        page_infos = task['data']['document']
-        cur_urls = [_['page'] for _ in page_infos]
-
-        # Parse Image and bboxes
-        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
-        for label in task['annotations'][0]['result']:
-            if label['type'] == 'labels':
-                # get image
-                num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
-                page = f"page_{num:03d}"
-                image_url = cur_urls[num]
-                basename = Path(image_url).name
-                decode_base_name = urllib.parse.unquote(basename)
-                if not decode_base_name.startswith(task_folder):
-                    decode_base_name = task_folder + '_' + decode_base_name
-                response = requests.get(image_url)
-                if response.status_code != 200:
-                    break
-                bytes_data = response.content
-                bytes_arr = np.frombuffer(bytes_data, np.uint8)
-                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-                img_oup = str(img_oup_path / decode_base_name)
-                cv2.imwrite(img_oup, img)
-                images_num += 1
-
-                # get ocr result
-                if ocr:
-                    ocr_result = get_ocr_results(img_oup)
-                    json_name = Path(decode_base_name).with_suffix('.json')
-                    with open(ocr_res_oup_path / json_name, 'w') as f:
-                        json.dump(ocr_result, f, ensure_ascii=False, indent=2)
-
-                # covert box
-                assert (label['original_width'] != 1) or (label['original_height'] != 1)
-                x, y, w, h = convert_from_ls(label)
-                angle = label['value']['rotation']
-                box = convert_rect([x, y, w, h, angle])
-                task_row = {
-                    'id': label['id'],
-                    'page_name': f'{task_folder}_{page}',
-                    'box': box,
-                    'rotation': label['value']['rotation'],
-                    'label': label['value']['labels'],  # 此处报错说明漏选标签
-                }
-
-            elif label['type'] == 'textarea':
-                task_row['text'] = label['value']['text']
-                anno_dict['annotations'].append(task_row)
-
-        post_processed_result.append(anno_dict)
-
-    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
-        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
-
-    print(f'images num: {images_num}')
-
-
 def long_ie_label_parse_v1(label_path, output_path):
     """将label studio 长文档标注转为uie-x预处理前的数据格式"""
     img_oup_path = Path(output_path) / 'Images'
@@ -266,5 +189,108 @@ def long_ie_label_parse_v1(label_path, output_path):
     print(f'images num: {images_num}')
 
 
+def long_ie_label_parse_v2(label_path, output_path):
+    """将label studio 长文档标注转为uie-x预处理前的数据格式"""
+    img_oup_path = Path(output_path) / 'Images'
+    ocr_res_oup_path = Path(output_path) / 'dataelem_ocr_res'
+    img_oup_path.mkdir(exist_ok=True, parents=True)
+    ocr_res_oup_path.mkdir(exist_ok=True, parents=True)
+
+    with open(label_path, 'r') as f:
+        raw_result = json.load(f)
+
+    post_processed_result = []
+    images_num = 0
+    for task in tqdm(raw_result):
+        # def process_task(task, post_processed_result):
+        task_folder = task['data']['Name']
+        page_infos = task['data']['document']
+        cur_urls = [_['page'] for _ in page_infos]
+
+        # Parse Images
+        pbar = tqdm(total=len(cur_urls), desc=f'downloading {task_folder} imgs')
+
+        def download_imgs(image_url):
+            # for image_url in cur_urls:
+            basename = Path(image_url).name
+            decode_base_name = urllib.parse.unquote(basename)
+            if not decode_base_name.startswith(task_folder):
+                decode_base_name = task_folder + '_' + decode_base_name
+            response = requests.get(image_url)
+            if response.status_code != 200:
+                print('erro')
+            bytes_data = response.content
+            bytes_arr = np.frombuffer(bytes_data, np.uint8)
+            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+            img_oup = str(img_oup_path / decode_base_name)
+            cv2.imwrite(img_oup, img)
+            pbar.update(1)
+
+        with ThreadPoolExecutor(max_workers=10) as e:
+            futures = [e.submit(download_imgs, task) for task in cur_urls]
+            for future in as_completed(futures):
+                images_num += 1
+                future.result()
+        pbar.close()
+
+        # Parse bboxes
+        anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
+        pre_id = '-'
+        for label in task['annotations'][0]['result']:
+            if label['type'] in ['labels', 'textarea']:
+                cur_id = label['id']
+                if cur_id != pre_id:
+                    anno_dict['annotations'].append({})
+                pre_id = cur_id
+
+                num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
+                image_url = cur_urls[num]
+                basename = Path(image_url).name
+                decode_base_name = urllib.parse.unquote(basename)
+                if not decode_base_name.startswith(task_folder):
+                    decode_base_name = task_folder + '_' + decode_base_name
+                filename_stem = Path(decode_base_name).stem
+
+                if label['type'] == 'labels':
+                    if (label['original_width'] == 1) or (
+                        label['original_height'] == 1
+                    ):
+                        print('some original_width or original_height equal 1')
+                        response = requests.get(image_url)
+                        if response.status_code != 200:
+                            break
+                        bytes_data = response.content
+                        bytes_arr = np.frombuffer(bytes_data, np.uint8)
+                        img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+                        label['original_width'] = img.shape[1]
+                        label['original_height'] = img.shape[0]
+
+                    x, y, w, h = convert_from_ls(label)
+                    angle = label['value']['rotation']
+                    box = convert_rect([x, y, w, h, angle])
+
+                    anno_dict['annotations'][-1]['box'] = box
+                    anno_dict['annotations'][-1]['label'] = label['value']['labels']
+                    anno_dict['annotations'][-1]['id'] = label['id']
+                    anno_dict['annotations'][-1]['page_name'] = filename_stem
+                    anno_dict['annotations'][-1]['rotation'] = label['value'][
+                        'rotation'
+                    ]
+                    anno_dict['annotations'][-1]['text'] = label['value'].get(
+                        'text', []
+                    )
+                elif label['type'] == 'textarea':
+                    anno_dict['annotations'][-1]['text'] = label['value']['text']
+
+        post_processed_result.append(anno_dict)
+
+    with open(Path(output_path) / 'processed_labels.json', 'w') as f:
+        json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
+
+    # print(f'images num: {images_num}')
+
+
 if __name__ == '__main__':
+    src = '/Users/youjiachen/Downloads/zlht.json'
+    long_ie_label_parse_v2(src, './zlht')
     pass
