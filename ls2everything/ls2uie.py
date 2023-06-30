@@ -202,7 +202,6 @@ def long_ie_label_parse_v2(label_path, output_path):
     post_processed_result = []
     images_num = 0
     for task in tqdm(raw_result):
-        # def process_task(task, post_processed_result):
         task_folder = task['data']['Name']
         page_infos = task['data']['document']
         cur_urls = [_['page'] for _ in page_infos]
