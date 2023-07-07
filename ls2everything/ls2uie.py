@@ -291,9 +291,11 @@ def long_ie_label_parse_v2(label_path, output_path, need_imgs=False):
 
 
 if __name__ == '__main__':
-    src = '/mnt/disk0/youjiachen/workspace/contract/总租赁合同.json'
-    dst = '/mnt/disk0/youjiachen/workspace/contract/租赁合同'
-    # long_ie_label_parse_v2(src, dst, need_imgs=True)
-
-    string = '甲方 | | 乙方 | | 乙方开户银行 | | 乙方银行账号 | | 税率 | | 合同生效或失效条款 | | 不含税总价小写 | | 合同总价大写 | | 合同总价小写 | | 签订日期 | | 合同有效期条款 | | 不含税总价大写 | | 项目名称'
-    print(string.replace('| | ', ';').replace(' ', ''))
+    src = '/mnt/disk0/youjiachen/label_studio/data/new_短文档-二手房-合并.json'
+    dst = '/mnt/disk0/youjiachen/label_studio/data/new_短文档-二手房-合并'
+    with open(src, 'r') as f:
+        data = json.load(f)[1]
+    if data['data'].get('Image'):
+        short_ie_label_parse(src, dst)
+    elif data['data'].get('document'):
+        long_ie_label_parse_v2(src, dst, need_imgs=True)
