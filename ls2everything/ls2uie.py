@@ -189,7 +189,7 @@ def long_ie_label_parse_v1(label_path, output_path):
     print(f'images num: {images_num}')
 
 
-def long_ie_label_parse_v2(label_path, output_path):
+def long_ie_label_parse_v2(label_path, output_path, need_imgs=False):
     """将label studio 长文档标注转为uie-x预处理前的数据格式"""
     img_oup_path = Path(output_path) / 'Images'
     ocr_res_oup_path = Path(output_path) / 'dataelem_ocr_res'
@@ -206,31 +206,32 @@ def long_ie_label_parse_v2(label_path, output_path):
         page_infos = task['data']['document']
         cur_urls = [_['page'] for _ in page_infos]
 
-        # Parse Images
-        pbar = tqdm(total=len(cur_urls), desc=f'downloading {task_folder} imgs')
+        if need_imgs:
+            # Parse Images
+            pbar = tqdm(total=len(cur_urls), desc=f'downloading {task_folder} imgs')
 
-        def download_imgs(image_url):
-            # for image_url in cur_urls:
-            basename = Path(image_url).name
-            decode_base_name = urllib.parse.unquote(basename)
-            if not decode_base_name.startswith(task_folder):
-                decode_base_name = task_folder + '_' + decode_base_name
-            response = requests.get(image_url)
-            if response.status_code != 200:
-                print('erro')
-            bytes_data = response.content
-            bytes_arr = np.frombuffer(bytes_data, np.uint8)
-            img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-            img_oup = str(img_oup_path / decode_base_name)
-            cv2.imwrite(img_oup, img)
-            pbar.update(1)
+            def download_imgs(image_url):
+                # for image_url in cur_urls:
+                basename = Path(image_url).name
+                decode_base_name = urllib.parse.unquote(basename)
+                if not decode_base_name.startswith(task_folder):
+                    decode_base_name = task_folder + '_' + decode_base_name
+                response = requests.get(image_url)
+                if response.status_code != 200:
+                    print('erro')
+                bytes_data = response.content
+                bytes_arr = np.frombuffer(bytes_data, np.uint8)
+                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+                img_oup = str(img_oup_path / decode_base_name)
+                cv2.imwrite(img_oup, img)
+                pbar.update(1)
 
-        with ThreadPoolExecutor(max_workers=10) as e:
-            futures = [e.submit(download_imgs, task) for task in cur_urls]
-            for future in as_completed(futures):
-                images_num += 1
-                future.result()
-        pbar.close()
+            with ThreadPoolExecutor(max_workers=10) as e:
+                futures = [e.submit(download_imgs, task) for task in cur_urls]
+                for future in as_completed(futures):
+                    images_num += 1
+                    future.result()
+            pbar.close()
 
         # Parse bboxes
         anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
@@ -290,6 +291,9 @@ def long_ie_label_parse_v2(label_path, output_path):
 
 
 if __name__ == '__main__':
-    src = '/Users/youjiachen/Downloads/zlht.json'
-    long_ie_label_parse_v2(src, './zlht')
-    pass
+    src = '/mnt/disk0/youjiachen/workspace/contract/总租赁合同.json'
+    dst = '/mnt/disk0/youjiachen/workspace/contract/租赁合同'
+    # long_ie_label_parse_v2(src, dst, need_imgs=True)
+
+    string = '甲方 | | 乙方 | | 乙方开户银行 | | 乙方银行账号 | | 税率 | | 合同生效或失效条款 | | 不含税总价小写 | | 合同总价大写 | | 合同总价小写 | | 签订日期 | | 合同有效期条款 | | 不含税总价大写 | | 项目名称'
+    print(string.replace('| | ', ';').replace(' ', ''))

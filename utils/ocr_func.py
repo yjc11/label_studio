@@ -114,13 +114,13 @@ def get_ocr_results(image_file, ip_address=IP_ADDRESS, port=PORT):
 if __name__ == '__main__':
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    DATA_DIR = '../output/询证函-去摩尔纹/Images'
-    OUTPUT_PATH = '../output/询证函-去摩尔纹/dataelem_ocr_res'
+    DATA_DIR = '../data/new/Images'
+    OUTPUT_PATH = '../data/new/dataelem_ocr_res'
     check_folder(OUTPUT_PATH)
 
     # smart structure
     @save_to_json(OUTPUT_PATH)
-    def get_ocr_results_and_save(image_file, ip_address=IP_ADDRESS, port=PORT):
+    def get_ocr_results_and_save(image_file, ip_address='192.168.106.126', port=PORT):
         """
         结构化OCR全文识别结果配置
         """
@@ -134,7 +134,8 @@ if __name__ == '__main__':
                 'support_long_rotate_dense': False,
                 'vis_flag': False,
                 'sdk': True,
-                'det': 'mrcnn-v5.1',
+                # 'det': 'mrcnn-v5.1',
+                'det': 'general_text_det_mrcnn_v1.0',
                 'recog': 'transformer-v2.8-gamma-faster',
             },
         }
@@ -145,7 +146,7 @@ if __name__ == '__main__':
 
     image_files = list(Path(DATA_DIR).glob('[!.]*'))
     pbar = tqdm(total=len(image_files))
-    with ThreadPoolExecutor(30) as e:
+    with ThreadPoolExecutor(10) as e:
         futures = [e.submit(get_ocr_results_and_save, task) for task in image_files]
         for future in as_completed(futures):
             pbar.update(1)

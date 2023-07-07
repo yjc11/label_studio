@@ -254,12 +254,6 @@ def long_ie_label_parse(label_path, output_path):
     with open(label_path, 'r') as f:
         raw_result = json.load(f)
 
-    # for i in raw_result:
-    #     for j in i['annotations'][0]['result']:
-    #         if j['type'] == 'labels':
-    #             total_anno_num += 1
-    # pbar = tqdm(total=total_anno_num)
-
     post_processed_result = []
     images_num = 0
     for task in tqdm(raw_result):
@@ -267,34 +261,35 @@ def long_ie_label_parse(label_path, output_path):
         task_folder = task['data']['Name']
         page_infos = task['data']['document']
         cur_urls = [_['page'] for _ in page_infos]
+         # get image
+        num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
+        page = f"page_{num:03d}"
+        image_url = cur_urls[num]
+        basename = Path(image_url).name
+        decode_base_name = urllib.parse.unquote(basename)
+        if not decode_base_name.startswith(task_folder):
+            decode_base_name = task_folder + '_' + decode_base_name
+        response = requests.get(image_url)
+        if response.status_code != 200:
+            break
+        bytes_data = response.content
+        bytes_arr = np.frombuffer(bytes_data, np.uint8)
+        img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
+        img_oup = str(img_oup_path / decode_base_name)
+        cv2.imwrite(img_oup, img)
+        images_num += 1
 
         # Parse Image and bboxes
         anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
         for label in task['annotations'][0]['result']:
             if label['type'] == 'labels':
-                # get image
-                num = int(re.search(r'_\d+', label['to_name']).group(0)[1:])
-                page = f"page_{num:03d}"
-                image_url = cur_urls[num]
-                basename = Path(image_url).name
-                decode_base_name = urllib.parse.unquote(basename)
-                if not decode_base_name.startswith(task_folder):
-                    decode_base_name = task_folder + '_' + decode_base_name
-                response = requests.get(image_url)
-                if response.status_code != 200:
-                    break
-                bytes_data = response.content
-                bytes_arr = np.frombuffer(bytes_data, np.uint8)
-                img = cv2.imdecode(bytes_arr, cv2.IMREAD_COLOR)
-                img_oup = str(img_oup_path / decode_base_name)
-                cv2.imwrite(img_oup, img)
-                images_num += 1
+               
 
                 # get ocr result
-                ocr_result = get_ocr_results(img_oup)
-                json_name = Path(decode_base_name).with_suffix('.json')
-                with open(ocr_res_oup_path / json_name, 'w') as f:
-                    json.dump(ocr_result, f, ensure_ascii=False, indent=2)
+                # ocr_result = get_ocr_results(img_oup)
+                # json_name = Path(decode_base_name).with_suffix('.json')
+                # with open(ocr_res_oup_path / json_name, 'w') as f:
+                #     json.dump(ocr_result, f, ensure_ascii=False, indent=2)
 
                 # covert box
                 assert (label['original_width'] != 1) or (label['original_height'] != 1)
@@ -442,8 +437,8 @@ if __name__ == "__main__":
     # process_ocr_studio(label_path, img_path, ocr_res_path, output_path)
     # long_ie_label_parse(label_path, img_path, ocr_res_path, output_path)
 
-    label_path = '../data/recog_合同识别测试.json'
-    dst = '../data/recog_合同识别测试'
+    label_path = '../data/fwht.json'
+    dst = '../data/fwht'
 
     # 转换格式
     long_ie_label_parse(label_path, dst)
