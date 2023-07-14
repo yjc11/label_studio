@@ -441,5 +441,11 @@ if __name__ == "__main__":
     dst = '../data/fwht'
 
     # 转换格式
-    long_ie_label_parse(label_path, dst)
-    # short_ie_label_parse(label_path, dst)
+    with open(label_path, 'r') as f:
+        data = json.load(f)[1]
+    if data['data'].get('Image'):
+        short_ie_label_parse(label_path, dst)
+    elif data['data'].get('document'):
+        long_ie_label_parse(label_path, dst)
+    
+    

@@ -114,41 +114,52 @@ def get_ocr_results(image_file, ip_address=IP_ADDRESS, port=PORT):
 if __name__ == '__main__':
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    DATA_DIR = '../data/new/Images'
-    OUTPUT_PATH = '../data/new/dataelem_ocr_res'
-    check_folder(OUTPUT_PATH)
+    DATA_DIR = '../data/new_短文档-二手房-合并/Images'
+    OUTPUT_PATH = '../data/new_短文档-二手房-合并/dataelem_ocr_res'
 
-    # smart structure
-    @save_to_json(OUTPUT_PATH)
-    def get_ocr_results_and_save(image_file, ip_address='192.168.106.126', port=PORT):
-        """
-        结构化OCR全文识别结果配置
-        """
-        data = {
-            'scene': 'chinese_print',
-            'image': convert_b64(image_file),
-            'parameters': {
-                'rotateupright': True,
-                'refine_boxes': True,
-                'sort_filter_boxes': True,
-                'support_long_rotate_dense': False,
-                'vis_flag': False,
-                'sdk': True,
-                # 'det': 'mrcnn-v5.1',
-                'det': 'general_text_det_mrcnn_v1.0',
-                'recog': 'transformer-v2.8-gamma-faster',
-            },
-        }
+    def xxxx(data_dir, oup_path):
+        check_folder(oup_path)
 
-        ret = general(data, ip_address, port)
+        # smart structure
+        @save_to_json(oup_path)
+        def get_ocr_results_and_save(image_file, ip_address=IP_ADDRESS, port=PORT):
+            """
+            结构化OCR全文识别结果配置
+            """
+            data = {
+                'scene': 'chinese_print',
+                'image': convert_b64(image_file),
+                'parameters': {
+                    'rotateupright': True,
+                    'refine_boxes': True,
+                    'sort_filter_boxes': True,
+                    'support_long_rotate_dense': False,
+                    'vis_flag': False,
+                    'sdk': True,
+                    'det': 'mrcnn-v5.1',
+                    # 'det': 'general_text_det_mrcnn_v1.0',
+                    'recog': 'transformer-v2.8-gamma-faster',
+                },
+            }
 
-        return ret['data']['json']['general_ocr_res']
+            ret = general(data, ip_address, port)
 
-    image_files = list(Path(DATA_DIR).glob('[!.]*'))
-    pbar = tqdm(total=len(image_files))
-    with ThreadPoolExecutor(10) as e:
-        futures = [e.submit(get_ocr_results_and_save, task) for task in image_files]
-        for future in as_completed(futures):
-            pbar.update(1)
-            future.result()
-    pbar.close()
+            return ret['data']['json']['general_ocr_res']
+
+        image_files = list(Path(data_dir).glob('[!.]*'))
+        pbar = tqdm(total=len(image_files))
+        with ThreadPoolExecutor(10) as e:
+            futures = [e.submit(get_ocr_results_and_save, task) for task in image_files]
+            for future in as_completed(futures):
+                pbar.update(1)
+                future.result()
+        pbar.close()
+
+    src = '/mnt/disk0/youjiachen/workspace/contract/ds_v2.1'
+    folder_list = list(Path(src).glob('[!.]*'))
+    for folder in folder_list:
+        if folder.is_dir():
+            data_path = folder / 'Images'
+            dst = folder / 'dataelem_ocr_res'
+            dst.mkdir(exist_ok=True, parents=True)
+            xxxx(data_path, dst)
