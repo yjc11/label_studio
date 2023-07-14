@@ -83,7 +83,8 @@ def short_ie_label_parse(label_path, output_path):
     post_processed_result = []
     images_num = 0
     for task in tqdm(raw_result):
-        task_folder = Path(task['data']['Image']).parents[1].name
+        task_folder = urllib.parse.unquote(Path(task['data']['Image']).stem)
+        # page_basename = Path(task['data']['Image']).stem
         anno_dict = {'task_name': task_folder, 'annotations': [], 'relations': []}
 
         # Parse Image
@@ -111,13 +112,13 @@ def short_ie_label_parse(label_path, output_path):
                 box = convert_rect([x, y, w, h, angle])
                 task_row = {
                     'id': label['id'],
-                    'page_name': f'{task_folder}_page_000',
+                    'page_name': f'{new_stem}',
                     'box': box,
                     'rotation': label['value']['rotation'],
                     'label': label['value']['labels'],  # 此处报错说明漏选标签
                 }
             elif label['type'] == 'textarea':
-                task_row['text'] = label['value']['text']
+                task_row['text'] = [label['value']['text'][0].replace('#wrong#', '')]
                 anno_dict['annotations'].append(task_row)
 
         post_processed_result.append(anno_dict)
@@ -255,7 +256,7 @@ def long_ie_label_parse_v2(label_path, output_path, need_imgs=False):
                     if (label['original_width'] == 1) or (
                         label['original_height'] == 1
                     ):
-                        print('some original_width or original_height equal 1')
+                        # print('some original_width or original_height equal 1')
                         response = requests.get(image_url)
                         if response.status_code != 200:
                             break
@@ -276,26 +277,33 @@ def long_ie_label_parse_v2(label_path, output_path, need_imgs=False):
                     anno_dict['annotations'][-1]['rotation'] = label['value'][
                         'rotation'
                     ]
-                    anno_dict['annotations'][-1]['text'] = label['value'].get(
-                        'text', []
-                    )
+                    if not anno_dict['annotations'][-1].get('text'):
+                        anno_text = label['value'].get('text', [])
+                        anno_dict['annotations'][-1]['text'] = anno_text
+
                 elif label['type'] == 'textarea':
-                    anno_dict['annotations'][-1]['text'] = label['value']['text']
+                    try:
+                        anno_dict['annotations'][-1]['text'] = [
+                            label['value']['text'][0].replace('#wrong#', '')
+                        ]
+                    except:
+                        print(label['id'])
 
         post_processed_result.append(anno_dict)
 
     with open(Path(output_path) / 'processed_labels.json', 'w') as f:
         json.dump(post_processed_result, f, ensure_ascii=False, indent=2)
 
-    # print(f'images num: {images_num}')
-
 
 if __name__ == '__main__':
-    src = '/mnt/disk0/youjiachen/label_studio/data/new_短文档-二手房-合并.json'
-    dst = '/mnt/disk0/youjiachen/label_studio/data/new_短文档-二手房-合并'
-    with open(src, 'r') as f:
-        data = json.load(f)[1]
-    if data['data'].get('Image'):
-        short_ie_label_parse(src, dst)
-    elif data['data'].get('document'):
-        long_ie_label_parse_v2(src, dst, need_imgs=True)
+    folders = '/mnt/disk0/youjiachen/workspace/contract/ds_v2.2'
+    for folder in tqdm(list(Path(folders).glob('[!.]*.json'))):
+        src = folder
+        dst = folder.with_name(folder.stem)
+        with open(src, 'r') as f:
+            data = json.load(f)[1]
+        if data['data'].get('Image'):
+            # short_ie_label_parse(src, dst)
+            print('xx')
+        elif data['data'].get('document'):
+            long_ie_label_parse_v2(src, dst, need_imgs=True)
