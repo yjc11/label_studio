@@ -2,12 +2,15 @@ import argparse
 import json
 import os
 import urllib.parse
+from pathlib import Path
 
 
 def trans_long_textie(data_dir, output_file, url_prefix):
     content = []
     for dirname in os.listdir(data_dir):
         sub_dir = os.path.join(data_dir, dirname)
+        if Path(sub_dir).name.startswith('.'):
+            continue
         pages = os.listdir(sub_dir)
         pages = sorted(pages)
         document = {'document': [], 'Name': dirname}
@@ -19,7 +22,7 @@ def trans_long_textie(data_dir, output_file, url_prefix):
         content.append(document)
 
     with open(output_file, 'w') as fout:
-        json.dump(content, fout, indent=4)
+        json.dump(content, fout, ensure_ascii=False, indent=4)
 
 
 def trans_textie(data_dir, output_file, url_prefix):

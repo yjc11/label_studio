@@ -1,6 +1,8 @@
 import hashlib
+import json
 import os
 import random
+import re
 import shutil
 import urllib
 from pathlib import Path
@@ -19,26 +21,31 @@ def check_folder(folder):
         os.makedirs(folder)
 
 
-def sample_files(source_dir, target_dir, sampling_rate):
+def sample_files(source_dir, target_dir, sample_nums):
     # Convert path strings to Path objects
     source_path = Path(source_dir)
     target_path = Path(target_dir)
 
     # Get list of all files in source directory
-    file_list = [f.name for f in source_path.iterdir() if f.is_file()]
+    file_list = list(source_path.glob('[!.]*'))
 
     # Compute number of files to sample
-    sample_size = int(len(file_list) * sampling_rate)
+    sample_size = min(sample_nums, len(file_list))
 
     # Randomly select files to sample
     sample_index = random.sample(range(len(file_list)), sample_size)
     sample_result = [file_list[i] for i in sample_index]
 
     # Copy sampled files to target directory
-    for file_name in sample_result:
-        source_file_path = source_path / file_name
-        target_file_path = target_path / file_name
-        shutil.copyfile(source_file_path, target_file_path)
+    for file in sample_result:
+        if file.is_file():
+            source_file_path = source_path / file.name
+            target_file_path = target_path / file.name
+            shutil.copyfile(source_file_path, target_file_path)
+        elif file.is_dir():
+            source_file_path = source_path / file.name
+            target_file_path = target_path / file.name
+            shutil.copytree(source_file_path, target_file_path)
 
 
 def image_deduplication(file_paths):
@@ -83,6 +90,18 @@ def rename_files():
         new_name = file_stem + '_page_000' + file_suffix
         file.rename(file.with_name(new_name))
 
-if __name__ == "__main__":
-    rename_files()
 
+def is_page_number(string):
+    pattern = r"_page_\d+$"
+    if re.search(pattern, string):
+        return True
+    else:
+        return False
+
+
+if __name__ == "__main__":
+    """sample"""
+    sp_size = 150
+    src = '/Users/youjiachen/Desktop/长文档5个场景/MSDS'
+    dst = '/Users/youjiachen/Desktop/长文档5个场景/MSDS采样'
+    sample_files(src, dst, sp_size)
