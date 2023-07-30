@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
         ret = general(data, ip_address, port)
 
-            return ret['data']['json']['general_ocr_res']
+        return ret['data']['json']['general_ocr_res']
 
     image_files = list(Path(DATA_DIR).glob('[!.]*'))
     pbar = tqdm(total=len(image_files))
