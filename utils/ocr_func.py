@@ -1,19 +1,34 @@
 import base64
-import concurrent.futures
 import json
 import os
 import re
 import shutil
+import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from multiprocessing.dummy import Pool as ThreadPool  # 多线程
 from pathlib import Path
+from typing import Any, Callable, List, Sequence
 
 import numpy as np
 import requests
 from tqdm import tqdm
 
-IP_ADDRESS = '192.168.106.131'
+IP_ADDRESS = '192.168.106.133'
 PORT = 8506
+
+
+def threaded(func: Callable):
+    def wrapper(tasks: Sequence[Any], **kwargs) -> None:
+        with ThreadPoolExecutor(10) as e:
+            pbar = tqdm(total=len(tasks))
+            futures: List = [e.submit(func, task, **kwargs) for task in tasks]
+            for future in as_completed(futures):
+                pbar.update(1)
+                future.result()
+            pbar.close()
+
+    return wrapper
 
 
 def check_folder(folder):
@@ -111,43 +126,42 @@ def get_ocr_results(image_file, ip_address=IP_ADDRESS, port=PORT):
     return ret['data']['json']['general_ocr_res']
 
 
+@threaded
+def get_ocr_results_and_save(image_file, output_dir):
+    """
+    结构化OCR全文识别结果配置
+    """
+    data = {
+        'scene': 'chinese_print',
+        'image': convert_b64(image_file),
+        'parameters': {
+            'rotateupright': True,
+            'refine_boxes': True,
+            'sort_filter_boxes': True,
+            'support_long_rotate_dense': False,
+            'vis_flag': False,
+            'sdk': True,
+            'det': 'mrcnn-v5.1',
+            # 'recog': 'transformer-v2.8-gamma-faster',
+        },
+    }
+
+    ret = general(data, IP_ADDRESS, PORT)
+    ocr_result = ret['data']['json']['general_ocr_res']
+
+    if output_dir:
+        json_file = Path(image_file).stem + '.json'
+        output_file = Path(output_dir) / json_file
+        with open(output_file, 'w') as f:
+            json.dump(ocr_result, f, ensure_ascii=False, indent=2)
+
+    return ocr_result
+
+
 if __name__ == '__main__':
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    input_images = '/Users/youjiachen/Desktop/长文档5个场景/公文/公文-南网项目发文'
+    output_dir = '/Users/youjiachen/Desktop/长文档5个场景/公文_dataelem_ocr_res'
+    check_folder(output_dir)
 
-    DATA_DIR = '../output/询证函-去摩尔纹/Images'
-    OUTPUT_PATH = '../output/询证函-去摩尔纹/dataelem_ocr_res'
-    check_folder(OUTPUT_PATH)
-
-    # smart structure
-    @save_to_json(OUTPUT_PATH)
-    def get_ocr_results_and_save(image_file, ip_address=IP_ADDRESS, port=PORT):
-        """
-        结构化OCR全文识别结果配置
-        """
-        data = {
-            'scene': 'chinese_print',
-            'image': convert_b64(image_file),
-            'parameters': {
-                'rotateupright': True,
-                'refine_boxes': True,
-                'sort_filter_boxes': True,
-                'support_long_rotate_dense': False,
-                'vis_flag': False,
-                'sdk': True,
-                'det': 'mrcnn-v5.1',
-                'recog': 'transformer-v2.8-gamma-faster',
-            },
-        }
-
-        ret = general(data, ip_address, port)
-
-        return ret['data']['json']['general_ocr_res']
-
-    image_files = list(Path(DATA_DIR).glob('[!.]*'))
-    pbar = tqdm(total=len(image_files))
-    with ThreadPoolExecutor(30) as e:
-        futures = [e.submit(get_ocr_results_and_save, task) for task in image_files]
-        for future in as_completed(futures):
-            pbar.update(1)
-            future.result()
-    pbar.close()
+    image_files = list(Path(input_images).glob('[!.]*'))
+    get_ocr_results_and_save(image_files, output_dir=output_dir)

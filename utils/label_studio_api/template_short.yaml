@@ -1,0 +1,30 @@
+<View>
+  <Relations>
+    <Relation value="同实例"/>
+    <Relation value="同组"/>
+  </Relations>
+ 
+
+<View style="display:flex;align-items:start;gap:8px;flex-direction:row-reverse"><Image name="image" value="$Image" rotateControl="true"/>
+
+  <Labels name="label" toName="image" showInline="false">
+    <Label value="勾选框" background="#00ff91"/>
+  <Label value="X选项" background="#FFA39E"/></Labels>
+
+  </View>
+
+  <Rectangle name="bbox" toName="image" strokeWidth="2"/>
+  <Polygon name="poly" toName="image" strokeWidth="2"/>
+
+  <TextArea name="transcription" toName="image" editable="true" perRegion="true" required="false" maxSubmissions="1" rows="5" placeholder="Recognized Text" displayMode="region-list"/>
+
+      <View>
+      <Header value="质检" />
+      <Choices name="reviewer" toName="image" choice="single" showInLine="true">
+        <Choice alias="T001" value="接受"/>
+        <Choice alias="T002" value="拒绝"/>
+        <Choice alias="T003" value="更新"/>
+      </Choices> 
+      </View>
+  
+</View>

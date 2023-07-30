@@ -1,0 +1,20 @@
+<View>
+  <Relations>
+    <Relation value="SingleIns"/>
+    <Relation value="Group"/>
+  </Relations>
+  
+  <Repeater on="$document" indexFlag="{{idx}}" mode="pagination">
+      <View style="display:flex;align-items:start;gap:8px;flex-direction:row-reverse">
+               <Image name="page_{{idx}}" value="$document[{{idx}}].page" inline="false" rotateControl="false" zoomControl="true" zoom="false"/>
+        <Labels name="labels_{{idx}}" toName="page_{{idx}}" showInline="false" choice="single" canRotate="true">
+          <Label value="Title" background="green"/>
+          <Label value="Author" background="yellow"/>
+          <Label value="Organization" background="orange"/>      
+       </Labels> 
+       <Rectangle name="rect-{{idx}}" toName="page_{{idx}}" />
+       <TextArea name="transcription-{{idx}}" toName="page_{{idx}}" editable="true" perRegion="true" required="false" maxSubmissions="1" rows="5" placeholder="Recognized Text" displayMode="region-list"/>
+    </View>
+  </Repeater>
+
+</View>
