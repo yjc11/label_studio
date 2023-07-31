@@ -259,12 +259,12 @@ def convert_label(dataset_folder, save_folder):
                 gt_bboxes.append(points)
 
         shutil.copy(json_file, os.path.join(save_ocr_folder, json_name))
-        shutil.copy(label_file, os.path.join(save_label_folder, json_name))
+        # shutil.copy(label_file, os.path.join(save_label_folder, json_name))
 
         # rotate gt_boxes
         for index, bbox in enumerate(gt_bboxes):
             bbox = np.array(bbox)
-            gt_bboxes[index] = rotate_box(bbox, image_size, rotate_angle)
+            gt_bboxes[index] = rotate_box(bbox, image_size, rotate_angle) 
 
         # sort gt_boxes, from top to bottom, from left to right
         sorted_res = sorted(
@@ -274,8 +274,17 @@ def convert_label(dataset_folder, save_folder):
         categorys = [categorys[elem[0]] for elem in sorted_res]
         values = [values[elem[0]] for elem in sorted_res]
 
+        # save label json file
+        page_label = []
+        for index, gt_bbox in enumerate(gt_bboxes):
+            category = categorys[index]
+            value = values[index]
+            page_label.append({'points': gt_bbox.tolist(), 'category': category, 'value': value})
+        with open(os.path.join(save_label_folder, json_name), 'w') as f:
+            json.dump(page_label, f, ensure_ascii=False, indent=2)
+
         # rotate image
-        image, _, _ = rotate_image_only(image, rotate_angle)  #
+        image, _, _ = rotate_image_only(image, rotate_angle)
         cv2.imwrite(os.path.join(save_image_folder, image_name), image)
         if train_or_val == 'val':
             cv2.imwrite(os.path.join(save_val_image_folder, image_name), image)
