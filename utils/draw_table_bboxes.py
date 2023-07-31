@@ -5,6 +5,7 @@ import shutil
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
+from typing import List
 
 import cv2
 import numpy as np
@@ -20,7 +21,13 @@ color_range = [
 ]
 
 
-def draw_boxes(image, boxes, is_table_bbox=False, scores=None, drop_score=0.5):
+def draw_boxes(
+    image: np.ndarray,
+    boxes,
+    is_table_bbox=False,
+    scores=None,
+    drop_score=0.5,
+) -> np.ndarray:
     if scores is None:
         scores = [1] * len(boxes)
     for box, score in zip(boxes, scores):

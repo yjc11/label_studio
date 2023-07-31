@@ -436,3 +436,4 @@ if __name__ == '__main__':
 
     # dataset_folder = '/home/public/ELLM_datasets/smart_structure_idcard_doc_uie_v2.0'
     # combine_label(dataset_folder)
+

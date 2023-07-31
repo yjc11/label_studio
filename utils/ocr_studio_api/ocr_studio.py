@@ -209,12 +209,12 @@ class OCRStudio:
 if __name__ == "__main__":
     ip_address = "192.168.106.133"
     port = 8088
-    folder_id = 21  # 10
-    json_oup = '../../output'
+    folder_id = 1  # 10
+    output_path = '../../UIE-X/entity/ocrstudio_to_socr_format/scene_folder'
 
     ocr_studio = OCRStudio(ip=ip_address, port=port, folder_id=folder_id)
-    # ocr_studio.get_all_tasks_labels(json_oup)
-    ocr_studio.get_task_labels(task_id=230, dst=json_oup)
-    ocr_studio.get_task_imgs(task_id=230, dst=json_oup)
+    # ocr_studio.get_all_tasks_labels(output_path)
+    ocr_studio.get_task_labels(task_id=179, dst=output_path)
+    ocr_studio.get_task_imgs(task_id=179, dst=output_path)
     # ocr_studio.convert_to_mrcnn_and_save(json_oup, txt_oup)
     # ocr_studio.rename_with_correction(ori_txts, ori_txts)

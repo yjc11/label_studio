@@ -8,19 +8,22 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from pprint import pprint
+from typing import Any, Dict, List
 
 import cv2
 import numpy as np
+import pandas as pd
 import requests
 import yaml
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-IP_ADDRESS = '192.168.106.131'
-PORT = 8506
+IP_ADDRESS = '192.168.106.12'
+PORT = 40058
+SERVER = 'http://192.168.106.12:40058'
 
 
-def api_call(image, scene='chinese_print'):
+def api_call(image, det_model, reg_model, scene='chinese_print'):
     def general(data, ip_address, port):
         r = requests.post(
             f'http://{ip_address}:{port}/lab/ocr/predict/general', json=data
@@ -41,15 +44,15 @@ def api_call(image, scene='chinese_print'):
         'scene': scene,
         'image': convert_b64(image),
         'parameters': {
+            'det': det_model,
+            'recog': reg_model,
             'rotateupright': True,
             'refine_boxes': True,
             'sort_filter_boxes': True,
             'support_long_rotate_dense': False,
             'vis_flag': False,
             'sdk': True,
-            'det': 'mrcnn-v5.1',
-            # 'det': 'general_text_det_mrcnn_v1.0',
-            'recog': 'transformer-v2.8-gamma-faster',
+            'checkbox': ['std_checkbox'],
         },
     }
 
@@ -114,7 +117,30 @@ def convert_rect(rrect):
     return [p0.tolist(), p1.tolist(), p2.tolist(), p3.tolist()]
 
 
-def long_to_socr(input_json, output_dir):
+def get_det_reg_model(excel_file):
+    df = pd.read_excel(io=excel_file, keep_default_na=False)
+    category = [i for i in df.场景 if i != '']
+    assert len(category) == len(set(set(category))), 'scene name is not unique.'
+    category = set(category)
+
+    scene_info = dict()
+    for scene in category:
+        reg_model = ''
+        det_model = ''
+        items = df[df.场景 == scene].values
+        reg_model = items[0][1]
+        det_model = items[0][2]
+
+        scene_info[scene] = [reg_model, det_model]
+    return scene_info
+
+
+def long_to_socr(input_json, output_dir, model_file):
+    scene = Path(input_json).stem
+    scene_ocr_info = get_det_reg_model(model_file)
+    reg_model, det_model = scene_ocr_info[scene]
+
+    output_dir = Path(output_dir) / scene
     labels_output_path = Path(output_dir) / 'Labels'
 
     images_output_path = Path(output_dir) / 'Images'
@@ -125,6 +151,8 @@ def long_to_socr(input_json, output_dir):
     train_ocr_results_output_path = ocr_results_output_path / 'train'
     val_ocr_results_output_path = ocr_results_output_path / 'val'
 
+    file_mapping_output_path = Path(output_dir) / 'file_mapping.json'
+
     output_paths = [
         labels_output_path,
         images_output_path,
@@ -134,6 +162,7 @@ def long_to_socr(input_json, output_dir):
         train_ocr_results_output_path,
         val_ocr_results_output_path,
     ]
+
     for path in output_paths:
         path.mkdir(parents=True, exist_ok=True)
 
@@ -165,11 +194,15 @@ def long_to_socr(input_json, output_dir):
     cur_datasets = {'train': train_examples, 'val': val_examples}
     print(f'train pdf: {len(train_examples)}, val pdf: {len(val_examples)}')
     label_set = set()
+    file_mapping_dict = defaultdict(list)
     result_dict = defaultdict(lambda: defaultdict(dict))
     for trainval, examples in cur_datasets.items():
         for task in examples:
             taskname = task['data']['Name']
             page_infos = task['data']['document']
+            file_mapping_dict[taskname] = [
+                _url_to_filename(info['page']) for info in page_infos
+            ]
 
             # 1. parse images and do ocr
             # for page2url in tqdm(page_infos):
@@ -180,7 +213,7 @@ def long_to_socr(input_json, output_dir):
                 img_output_path = Path(images_output_path) / trainval / filename
                 cv2.imwrite(str(img_output_path), img)
 
-                ocr_result = api_call(img)
+                ocr_result = api_call(img, reg_model, det_model)
                 json_name = Path(filename).with_suffix('.json')
                 with open(ocr_results_output_path / trainval / json_name, 'w') as f:
                     json.dump(ocr_result, f, ensure_ascii=False)
@@ -249,29 +282,42 @@ def long_to_socr(input_json, output_dir):
     with open(Path(output_dir) / 'meta.yaml', 'w', encoding='utf-8') as f:
         yaml.dump(meta_yaml, f, allow_unicode=True)
 
+    # save file mapping json
+    with open(file_mapping_output_path, 'w') as f:
+        json.dump(file_mapping_dict, f, ensure_ascii=False, indent=2)
+
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-i',
-        '--input_json',
+        '--input_folder',
         help='input label studio long text json',
         type=str,
-        default='./租赁合同v2.3.json',
+        default='./scene_folder',
     )
     parser.add_argument(
         '-o',
         '--output_dir',
         help='output dir',
         type=str,
-        default='../output',
+        default='./output',
+    )
+    parser.add_argument(
+        '-m',
+        '--model_file',
+        help='ocr det and rocog excel ',
+        type=str,
+        default='./scene_folder/model.xlsx',
     )
     return parser.parse_args()
 
 
 def main():
     args = get_args()
-    long_to_socr(args.input_json, args.output_dir)
+    input_jsons = list(Path(args.input_folder).glob('[!.]*.json'))
+    for input_json in input_jsons:
+        long_to_socr(input_json, args.output_dir, args.model_file)
 
 
 if __name__ == '__main__':
