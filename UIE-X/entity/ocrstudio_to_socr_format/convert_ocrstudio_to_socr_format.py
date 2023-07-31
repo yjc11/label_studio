@@ -1,3 +1,4 @@
+import argparse
 import base64
 import glob
 import json
@@ -138,8 +139,8 @@ def get_trainval_ocr_results(folder, save_folder, model_file):
 
             try:
                 ocr_res = api_call(image_file, reg_model, det_model)['data']['json'][
-                'general_ocr_res'
-            ]
+                    'general_ocr_res'
+                ]
             except:
                 print(f'{image_file} gets ocr reuslts failed.')
 
@@ -170,8 +171,36 @@ def get_trainval_ocr_results(folder, save_folder, model_file):
         print(scene, len(image_files), len(os.listdir(label_folder)), 'done')
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-i',
+        '--input_folder',
+        help='input label studio long text json',
+        type=str,
+        default='./scene_folder',
+    )
+    parser.add_argument(
+        '-o',
+        '--output_dir',
+        help='output dir',
+        type=str,
+        default='./output',
+    )
+    parser.add_argument(
+        '-m',
+        '--model_file',
+        help='ocr det and rocog excel ',
+        type=str,
+        default='./scene_folder/model.xlsx',
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = get_args()
+    get_trainval_ocr_results(args.input_folder, args.output_dir, args.model_file)
+
+
 if __name__ == '__main__':
-    scene_folder = '/Users/youjiachen/Desktop/projects/label_studio_mgr/UIE-X/entity/ocrstudio_to_socr_format/scene_folder'
-    save_folder = '/Users/youjiachen/Desktop/projects/label_studio_mgr/UIE-X/entity/ocrstudio_to_socr_format/output'
-    model_file = os.path.join(scene_folder, 'model.xlsx')
-    get_trainval_ocr_results(scene_folder, save_folder, model_file)
+    main()
