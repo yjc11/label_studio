@@ -215,8 +215,11 @@ def long_text_crop_and_recog(label_path, output_path, max_workers=10):
     pbar.close()
 
     basename = Path(label_path).stem
-    with open(Path(output_path) / f'recog_{basename}.json', 'w') as f:
+    oup_path = Path(output_path) / f'recog_{basename}.json'
+    with open(oup_path, 'w') as f:
         json.dump(raw_result, f, ensure_ascii=False, indent=2)
+
+    return oup_path
 
 
 def short_text_crop_and_recog(label_path, output_path, max_workers=10):

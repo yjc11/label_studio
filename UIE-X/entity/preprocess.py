@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import copy
@@ -196,7 +197,7 @@ def vis_image(dataset_folder):
         cv2.imwrite(os.path.join(save_folder, image_name), image)
 
 
-def convert_label(dataset_folder, save_folder):
+def convert_label(dataset_folder, save_folder, remain_nolabel_img=False):
     """
     convert socr format to uie trainval format
     """
@@ -227,16 +228,22 @@ def convert_label(dataset_folder, save_folder):
         train_or_val = os.path.basename(os.path.dirname(image_file))
 
         json_name = os.path.splitext(image_name)[0] + '.json'
-        json_file = os.path.join(
-            dataset_folder, 'Images', 'ocr_results', train_or_val, json_name
+        ocr_result_file = (
+            Path(dataset_folder) / f'Images/ocr_results/{train_or_val}/{json_name}'
         )
-        label_file = os.path.join(dataset_folder, 'Labels', json_name)
 
-        if (not os.path.exists(json_file)) or (not os.path.exists(label_file)):
-            label_or_ocr_not_exist.append(image_file)
-            continue
+        label_file = Path(dataset_folder) / f'Labels/{json_name}'
 
-        with open(json_file, 'r') as f:  # ocr result
+        if remain_nolabel_img:
+            if not ocr_result_file.exists():  # 无ocr结果时，才跳过
+                label_or_ocr_not_exist.append(image_name)
+                continue
+        else:  # 仅保留有标签的页面
+            if not ocr_result_file.exists() or not label_file.exists():
+                label_or_ocr_not_exist.append(image_name)
+                continue
+
+        with open(ocr_result_file, 'r') as f:  # ocr result
             ocr_results = json.load(f)
             rotate_angle = ocr_results['rotate_angle']  # [0， 90 ，180， -90]
             rotateupright = ocr_results['rotateupright']
@@ -244,12 +251,20 @@ def convert_label(dataset_folder, save_folder):
             bboxes = ocr_results['bboxes']
             texts = ocr_results['texts']
             image_size = ocr_results['image_size']
+            if not ''.join(texts):
+                # no ocr results
+                continue
 
-        with open(label_file, 'r') as f:
-            labels = json.load(f)
-            categorys = []
-            values = []
-            gt_bboxes = []
+        # copy ocr result file
+        shutil.copy(ocr_result_file, os.path.join(save_ocr_folder, json_name))
+
+        categorys = []
+        values = []
+        gt_bboxes = []
+        if label_file.exists():
+            with open(label_file, 'r') as f:
+                labels = json.load(f)
+
             for label in labels:
                 category = label['category']
                 value = label['value']
@@ -258,13 +273,10 @@ def convert_label(dataset_folder, save_folder):
                 values.append(value)
                 gt_bboxes.append(points)
 
-        shutil.copy(json_file, os.path.join(save_ocr_folder, json_name))
-        # shutil.copy(label_file, os.path.join(save_label_folder, json_name))
-
         # rotate gt_boxes
         for index, bbox in enumerate(gt_bboxes):
             bbox = np.array(bbox)
-            gt_bboxes[index] = rotate_box(bbox, image_size, rotate_angle) 
+            gt_bboxes[index] = rotate_box(bbox, image_size, rotate_angle)
 
         # sort gt_boxes, from top to bottom, from left to right
         sorted_res = sorted(
@@ -279,7 +291,9 @@ def convert_label(dataset_folder, save_folder):
         for index, gt_bbox in enumerate(gt_bboxes):
             category = categorys[index]
             value = values[index]
-            page_label.append({'points': gt_bbox.tolist(), 'category': category, 'value': value})
+            page_label.append(
+                {'points': gt_bbox.tolist(), 'category': category, 'value': value}
+            )
         with open(os.path.join(save_label_folder, json_name), 'w') as f:
             json.dump(page_label, f, ensure_ascii=False, indent=2)
 
@@ -328,9 +342,11 @@ def convert_label(dataset_folder, save_folder):
             label_val_studio.append(convert_label)
 
     with open(os.path.join(save_folder, 'label_train_studio.json'), 'w') as f:
-        f.write(json.dumps(label_train_studio, ensure_ascii=False))
+        json.dump(label_train_studio, f, ensure_ascii=False, indent=2)
+        # f.write(json.dumps(label_train_studio, ensure_ascii=False))
     with open(os.path.join(save_folder, 'label_val_studio.json'), 'w') as f:
-        f.write(json.dumps(label_val_studio, ensure_ascii=False))
+        json.dump(label_val_studio, f, ensure_ascii=False, indent=2)
+        # f.write(json.dumps(label_val_studio, ensure_ascii=False))
 
     print(
         'total image: {}, label_or_ocr_not_exist image: {}'.format(
@@ -430,9 +446,9 @@ def combine_label(dataset_folder):
 
 
 if __name__ == '__main__':
-    data_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/output/卡证表单23-7_道路运输证_convert'
-    save_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/output/卡证表单23-7_道路运输证_convert_result'
-    convert_label(data_path, save_path)
+    data_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/UIE-X/entity/ocrstudio_to_socr_format/output/卡证表单23-7_道路运输证'
+    save_path = '/Users/youjiachen/Desktop/projects/label_studio_mgr/UIE-X/entity/ocrstudio_to_socr_format/output/卡证表单23-7_道路运输证_convert'
+    convert_label(data_path, save_path, True)
     # dataset_folder = '/home/public/ELLM_datasets/smart_structure_idcard_v2.0/增值税普票'
     # vis_image(dataset_folder)
 
@@ -445,4 +461,3 @@ if __name__ == '__main__':
 
     # dataset_folder = '/home/public/ELLM_datasets/smart_structure_idcard_doc_uie_v2.0'
     # combine_label(dataset_folder)
-

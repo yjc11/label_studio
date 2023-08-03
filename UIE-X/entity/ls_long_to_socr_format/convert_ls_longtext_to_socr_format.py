@@ -24,6 +24,13 @@ SERVER = 'http://192.168.106.12:40058'
 
 
 def api_call(image, det_model, reg_model, scene='chinese_print'):
+    assert det_model in ['general_text_det_mrcnn_v1.0', 'mrcnn-v5.1']
+    assert reg_model in [
+        'transformer-v2.8-gamma-faster',
+        'transformer-blank-v0.2-faster',
+        'transformer-hand-v1.16-faster',
+    ]
+
     def general(data, ip_address, port):
         r = requests.post(
             f'http://{ip_address}:{port}/lab/ocr/predict/general', json=data
@@ -205,29 +212,29 @@ def long_to_socr(input_json, output_dir, model_file):
             ]
 
             # 1. parse images and do ocr
-            # for page2url in tqdm(page_infos):
-            def process_page(page2url):
+            for page2url in tqdm(page_infos):
+                # def process_page(page2url):
                 image_url = page2url['page']
                 filename = _url_to_filename(image_url)
                 img, w, h = _request_image_url(image_url)
                 img_output_path = Path(images_output_path) / trainval / filename
                 cv2.imwrite(str(img_output_path), img)
 
-                ocr_result = api_call(img, reg_model, det_model)
+                ocr_result = api_call(img_output_path, det_model, reg_model)
                 json_name = Path(filename).with_suffix('.json')
                 with open(ocr_results_output_path / trainval / json_name, 'w') as f:
                     json.dump(ocr_result, f, ensure_ascii=False)
 
-            pbar = tqdm(
-                total=len(page_infos),
-                desc=f'downloading {taskname} {trainval} image and do ocr',
-            )
-            with ThreadPoolExecutor(max_workers=10) as e:
-                futures = [e.submit(process_page, page) for page in page_infos]
-                for future in as_completed(futures):
-                    pbar.update(1)
-                    future.result()
-            pbar.close()
+            # pbar = tqdm(
+            #     total=len(page_infos),
+            #     desc=f'downloading {taskname} {trainval} image and do ocr',
+            # )
+            # with ThreadPoolExecutor(max_workers=1) as e:
+            #     futures = [e.submit(process_page, page) for page in page_infos]
+            #     for future in as_completed(futures):
+            #         pbar.update(1)
+            #         future.result()
+            # pbar.close()
 
             # 2. parse boxes
             annos = task['annotations'][0]['result']
@@ -294,21 +301,11 @@ def get_args():
         '--input_folder',
         help='input label studio long text json',
         type=str,
-        default='./scene_folder',
+        default=None,
     )
+    parser.add_argument('-o', '--output_dir', help='output dir', type=str, default=None)
     parser.add_argument(
-        '-o',
-        '--output_dir',
-        help='output dir',
-        type=str,
-        default='./output',
-    )
-    parser.add_argument(
-        '-m',
-        '--model_file',
-        help='ocr det and rocog excel ',
-        type=str,
-        default='./scene_folder/model.xlsx',
+        '-m', '--model_file', help='ocr det and rocog excel ', type=str, default=None
     )
     return parser.parse_args()
 

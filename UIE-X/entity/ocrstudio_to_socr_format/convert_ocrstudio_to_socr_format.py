@@ -141,7 +141,8 @@ def get_trainval_ocr_results(folder, save_folder, model_file):
                 ocr_res = api_call(image_file, reg_model, det_model)['data']['json'][
                     'general_ocr_res'
                 ]
-            except:
+            except Exception as e:
+                print(e)
                 print(f'{image_file} gets ocr reuslts failed.')
 
             if np.random.rand() < 0.8:
@@ -178,21 +179,21 @@ def get_args():
         '--input_folder',
         help='input label studio long text json',
         type=str,
-        default='./scene_folder',
+        default=None,
     )
     parser.add_argument(
         '-o',
         '--output_dir',
         help='output dir',
         type=str,
-        default='./output',
+        default=None,
     )
     parser.add_argument(
         '-m',
         '--model_file',
         help='ocr det and rocog excel ',
         type=str,
-        default='./scene_folder/model.xlsx',
+        default=None,
     )
     return parser.parse_args()
 

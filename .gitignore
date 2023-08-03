@@ -7,3 +7,4 @@ workspace/
 .vscode
 doc
 output*
+*.json
