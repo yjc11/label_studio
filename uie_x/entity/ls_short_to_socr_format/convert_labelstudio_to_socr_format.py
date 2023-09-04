@@ -90,10 +90,24 @@ def get_args():
     )
     parser.add_argument(
         '-output',
-        '--output_file',
+        '--output_dir',
         help='output file path',
         type=str,
         required=True,
+        default=None,
+    )
+    parser.add_argument(
+        '-m',
+        '--model_file',
+        help='ocr det and rocog excel ',
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        '-s',
+        '--sheet_name',
+        help='sheet_name',
+        type=str,
         default=None,
     )
 
@@ -350,10 +364,10 @@ def main():
     args = get_args()
 
     # create out dir
-    Path.mkdir(Path(args.output_file), exist_ok=True)
+    Path.mkdir(Path(args.output_dir), exist_ok=True)
 
     # 同目录下添加 model.xlsx表格（带表格列名），映射场景（和文件夹下json文件同名）到识别模型
-    model_config = pd.read_excel(io=args.data_dir + '/model.xlsx')
+    model_config = pd.read_excel(io=args.model_file, sheet_name=args.sheet_name)
     data_dir = args.data_dir
     scene_model = {}
     for row in model_config.iterrows():
@@ -363,7 +377,7 @@ def main():
             continue
         if os.path.isdir(os.path.join(data_dir, label)):
             continue
-        output_path = os.path.join(args.output_file, label.split('.')[0])
+        output_path = os.path.join(args.output_dir, label.split('.')[0])
         if not os.path.exists(output_path):
             os.mkdir(output_path)
             # os.chdir(output_path)

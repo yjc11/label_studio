@@ -8,7 +8,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from pprint import pprint
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import cv2
 import numpy as np
@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 IP_ADDRESS = '192.168.106.12'
 PORT = 40058
-SERVER = 'http://192.168.106.12:40058'
+# SERVER = 'http://192.168.106.12:40058'
 
 
 def api_call(image, det_model, reg_model, scene='chinese_print'):
@@ -124,8 +124,8 @@ def convert_rect(rrect):
     return [p0.tolist(), p1.tolist(), p2.tolist(), p3.tolist()]
 
 
-def get_det_reg_model(excel_file):
-    df = pd.read_excel(io=excel_file, keep_default_na=False)
+def get_det_reg_model(excel_file, sheet_name):
+    df = pd.read_excel(io=excel_file, keep_default_na=False, sheet_name=sheet_name)
     category = [i for i in df.场景 if i != '']
     assert len(category) == len(set(set(category))), 'scene name is not unique.'
     category = set(category)
@@ -142,10 +142,11 @@ def get_det_reg_model(excel_file):
     return scene_info
 
 
-def long_to_socr(input_json, output_dir, model_file):
+def long_to_socr(input_json, output_dir, model_file, sheet_name):
     scene = Path(input_json).stem
-    scene_ocr_info = get_det_reg_model(model_file)
+    scene_ocr_info = get_det_reg_model(model_file, sheet_name)
     reg_model, det_model = scene_ocr_info[scene]
+    print(f'SCENE: {scene}', f'DET: {det_model}', f'REGCOG: {reg_model}')
 
     output_dir = Path(output_dir) / scene
     labels_output_path = Path(output_dir) / 'Labels'
@@ -204,7 +205,7 @@ def long_to_socr(input_json, output_dir, model_file):
     file_mapping_dict = defaultdict(list)
     result_dict = defaultdict(lambda: defaultdict(dict))
     for trainval, examples in cur_datasets.items():
-        for task in examples:
+        for task in tqdm(examples, desc=f'process {trainval} data'):
             taskname = task['data']['Name']
             page_infos = task['data']['document']
             file_mapping_dict[taskname] = [
@@ -212,8 +213,8 @@ def long_to_socr(input_json, output_dir, model_file):
             ]
 
             # 1. parse images and do ocr
-            for page2url in tqdm(page_infos):
-                # def process_page(page2url):
+            # for page2url in tqdm(page_infos):
+            def process_page(page2url):
                 image_url = page2url['page']
                 filename = _url_to_filename(image_url)
                 img, w, h = _request_image_url(image_url)
@@ -225,16 +226,10 @@ def long_to_socr(input_json, output_dir, model_file):
                 with open(ocr_results_output_path / trainval / json_name, 'w') as f:
                     json.dump(ocr_result, f, ensure_ascii=False)
 
-            # pbar = tqdm(
-            #     total=len(page_infos),
-            #     desc=f'downloading {taskname} {trainval} image and do ocr',
-            # )
-            # with ThreadPoolExecutor(max_workers=1) as e:
-            #     futures = [e.submit(process_page, page) for page in page_infos]
-            #     for future in as_completed(futures):
-            #         pbar.update(1)
-            #         future.result()
-            # pbar.close()
+            with ThreadPoolExecutor(max_workers=10) as e:
+                futures = [e.submit(process_page, page) for page in page_infos]
+                for future in as_completed(futures):
+                    future.result()
 
             # 2. parse boxes
             annos = task['annotations'][0]['result']
@@ -293,6 +288,8 @@ def long_to_socr(input_json, output_dir, model_file):
     with open(file_mapping_output_path, 'w') as f:
         json.dump(file_mapping_dict, f, ensure_ascii=False, indent=2)
 
+    print(f'{scene} done')
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -307,6 +304,13 @@ def get_args():
     parser.add_argument(
         '-m', '--model_file', help='ocr det and rocog excel ', type=str, default=None
     )
+    parser.add_argument(
+        '-s',
+        '--sheet_name',
+        help='sheet_name',
+        type=str,
+        default=None,
+    )
     return parser.parse_args()
 
 
@@ -314,7 +318,7 @@ def main():
     args = get_args()
     input_jsons = list(Path(args.input_folder).glob('[!.]*.json'))
     for input_json in input_jsons:
-        long_to_socr(input_json, args.output_dir, args.model_file)
+        long_to_socr(input_json, args.output_dir, args.model_file, args.sheet_name)
 
 
 if __name__ == '__main__':
