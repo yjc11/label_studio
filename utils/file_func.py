@@ -1,3 +1,5 @@
+import argparse
+import glob
 import hashlib
 import json
 import os
@@ -5,10 +7,14 @@ import random
 import re
 import shutil
 import urllib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, Callable, List, Sequence
 
 import cv2
+import fitz
 import imagehash
+from __init__ import threaded
 from PIL import Image
 from tqdm import tqdm
 
@@ -99,9 +105,36 @@ def is_page_number(string):
         return False
 
 
+@threaded
+def transpdf2png(filename, output_dir):
+    doc = fitz.open(filename)
+    basename = os.path.basename(filename)
+    filename = basename.rsplit('.', 1)[0]
+    for page in doc:
+        dpis = [72, 144, 200]
+        pix = None
+        for dpi in dpis:
+            pix = page.get_pixmap(dpi=dpi)
+            if min(pix.width, pix.height) >= 1600:
+                break
+
+        out_name = "page_{:03d}.png".format(page.number)
+        out_dir = os.path.join(output_dir, filename)
+        out_file = os.path.join(output_dir, filename, out_name)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        pix.save(out_file)
+
+
 if __name__ == "__main__":
     """sample"""
-    sp_size = 150
-    src = '/Users/youjiachen/Desktop/长文档5个场景/MSDS'
-    dst = '/Users/youjiachen/Desktop/长文档5个场景/MSDS采样'
-    sample_files(src, dst, sp_size)
+    # sp_size = 150
+    # src = '/Users/youjiachen/Desktop/长文档5个场景/MSDS'
+    # dst = '/Users/youjiachen/Desktop/长文档5个场景/MSDS采样'
+    # sample_files(src, dst, sp_size)
+
+    # src = '/mnt/disk0/youjiachen/workspace/公司章程'
+    # pdfs = list(Path(src).glob('[!.]*'))
+    # output_dir = '/mnt/disk0/youjiachen/workspace/公司章程_pdf2png'
+    # transpdf2png(pdfs, output_dir=output_dir)
