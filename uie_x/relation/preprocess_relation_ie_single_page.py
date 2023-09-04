@@ -237,8 +237,6 @@ def convert_data(input_json, output_dir, do_ocr=False):
                 json.dump(ocr_result, f, ensure_ascii=False, indent=2)
 
     # process into uie label studio format
-    no_ocr_result = list()
-    no_annos = list()
     for trainval, examples in dataset.items():
         for example in tqdm(examples, desc=f'Process {trainval} Data'):
             new_result = list()
@@ -253,13 +251,6 @@ def convert_data(input_json, output_dir, do_ocr=False):
             # get ocr result filename
             json_name = Path(img_name).with_suffix('.json')
             ocr_result_file = ocr_results_output_path.joinpath(json_name)
-
-            # todo: remain no label example
-            # if not ocr_result_file.exists():
-            #     no_ocr_result.append(img_name)
-            #     continue
-            # elif not len(result_list):
-            #     no_annos.append(img_name)
 
             # load ocr result
             with open(ocr_result_file, 'r') as f:
